@@ -10,3 +10,5 @@ printf "\033[17mPica Proportional \033[18mElite Proportional \033[10m Primary Fo
 printf "\033[30mBlack \033[31mRed     \033[32mGreen  \033[33mYellow \r\n"
 printf "\033[34mBlue  \033[35mMagenta \033[36mOrange \033[37mWhite\033[30m\r\n"
 
+printf "[\033[8mConcealed\033[28m] [\033[9mStrikethrough\033[29m]\r\n"
+

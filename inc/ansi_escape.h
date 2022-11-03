@@ -35,7 +35,7 @@ typedef enum ansi_sgr_enum {
     ANSI_SGR_NO_BLINKING              = 25,
     ANSI_SGR_PROPORTIONAL_SPACING     = 26,
     ANSI_SGR_NO_INVERT                = 27,
-    ANSI_SGR_NO_CONCEALED             = 28,
+    ANSI_SGR_NO_CONCEAL               = 28,
     ANSI_SGR_NO_STRIKETHROUGH         = 29,
     ANSI_SGR_FOREGROUND_START         = 30,
     ANSI_SGR_FOREGROUND_END           = 37,

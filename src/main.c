@@ -15,7 +15,9 @@ typedef struct opts_struct {
     int      fd_in;   /**< Input file descriptor */
     int      fd_out;  /**< Output file descriptor */
     uint32_t flags;   /**< Configuration flags, and default state */
-#define OPT_FLAG_ENABLECOLOR (1UL << 31)
+#define OPT_FLAG_STRIKETHROUGH (1UL <<  0)
+#define OPT_FLAG_CONCEAL       (1UL <<  1)
+#define OPT_FLAG_ENABLECOLOR   (1UL << 31)
     uint8_t  font;    /**< Default font to use */
     uint8_t  color;   /**< Default color to use */
     uint8_t  verbose; /**< Program verbosity level */
@@ -128,6 +130,18 @@ static int _handle_char(char c) {
                     }
                 } else {
                     switch(sgr) {
+                        case ANSI_SGR_STRIKETHROUGH:
+                            opts.flags |= OPT_FLAG_STRIKETHROUGH;
+                            break;
+                        case ANSI_SGR_NO_STRIKETHROUGH:
+                            opts.flags &= ~OPT_FLAG_STRIKETHROUGH;
+                            break;
+                        case ANSI_SGR_CONCEAL:
+                            opts.flags |= OPT_FLAG_CONCEAL;
+                            break;
+                        case ANSI_SGR_NO_CONCEAL:
+                            opts.flags &= ~OPT_FLAG_CONCEAL;
+                            break;
                         case ANSI_SGR_FONT_PRIMARY:
                             iwii_set_font(opts.fd_out, opts.font);
                             break;
@@ -143,7 +157,14 @@ static int _handle_char(char c) {
         ansi_buf[0] = c;
         ansi_pos = 1;
     } else {
+        if(opts.flags & OPT_FLAG_CONCEAL) {
+            c = ' ';
+        } 
         write(opts.fd_out, &c, 1);
+        if(opts.flags & OPT_FLAG_STRIKETHROUGH) {
+            const char st[] = { '\b', '-' };
+            write(opts.fd_out, &st, 2);
+        } 
     }
 
     return 0;

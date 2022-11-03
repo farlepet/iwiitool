@@ -21,11 +21,15 @@ Currently only a subset of SGR (Screen Graphic Rendition) ANSI escape sequences
 | 1     | Bold                      | `ESC !`     |                                                       |
 | 3     | Italic                    | `ESC w`     | Approximating using half height text on the IWII side |
 | 4     | Underline                 | `ESC X`     |                                                       |
+| 8     | Conceal                   | N/A         | Prints spaces while enabled                           |
+| 9     | Strikethrough             | `\b-`       | Prints - over each character (slow)                   |
 | 10    | Primary Font              | (multiple)  | Set via `--font`, defaults to Elite                   |
 | 11-18 | Set Font                  | (multiple)  | See `--help` for details                              |
 | 22    | Normal Intensity/Bold Off | `ESC "`     |                                                       |
 | 23    | Italic Off                | `ESC W`     | See note on 3                                         |
 | 24    | Underline Off             | `ESC Y`     |                                                       |
+| 28    | Conceal Off               | N/A         |                                                       |
+| 29    | Strikethrough Off         | N/A         |                                                       |
 | 30-37 | Set Foreground Color      | (multiple)  | Cyan (6) represented by orange                        |
 | 73    | Superscript               | `ESC x`     |                                                       |
 | 74    | Subscript                 | `ESC y`     |                                                       |
