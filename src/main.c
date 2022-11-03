@@ -19,13 +19,19 @@ typedef struct opts_struct {
     uint8_t  font;    /**< Default font to use */
     uint8_t  color;   /**< Default color to use */
     uint8_t  verbose; /**< Program verbosity level */
+    uint8_t  lpi;     /**< Default lines per inch */
+    uint8_t  quality; /**< Default print quality */
 } opts_t;
 
 static opts_t opts = {
-    .fd_in  = STDIN_FILENO,
-    .fd_out = STDOUT_FILENO,
-    .flags  = 0,
-    .font   = IWII_FONT_ELITE
+    .fd_in   = STDIN_FILENO,
+    .fd_out  = STDOUT_FILENO,
+    .flags   = 0,
+    .font    = IWII_FONT_ELITE,
+    .color   = ANSI_COLOR_BLACK,
+    .verbose = 0,
+    .quality = IWII_QUAL_DRAFT,
+    .lpi     = 8
 };
 
 static int _handle_char(char c);
@@ -39,6 +45,10 @@ int main(int argc, char **argv) {
     if(_handle_args(argc, argv)) {
         return -1;
     }
+
+    iwii_set_font(opts.fd_out, opts.font);
+    iwii_set_lpi(opts.fd_out, opts.lpi);
+    iwii_set_quality(opts.fd_out, opts.quality);
 
     char *buff = malloc(BUFF_SZ);
     if(buff == NULL) {
@@ -149,7 +159,7 @@ ansi_error:
 }
 
 static void _help(void) {
-    puts("ansi2iwii: Convert ANSI escape codes to Apple ImageWriter II escape codes\n\n");
+    puts("ansi2iwii: Convert ANSI escape codes to Apple ImageWriter II escape codes\n");
 
     puts("Options:\n"
          "  -h, --help             Display this help message\n"
@@ -166,6 +176,11 @@ static void _help(void) {
          "                           5: Ultracondensed\n"
          "                           6: Pica proportional\n"
          "                           7: Elite proportional\n"
+         "  -q, --quality=QUAL     Set print quality to use:\n"
+         "                           0: Draft (default)\n"
+         "                           1: Standard\n"
+         "                           2: Near Letter Quality\n"
+         "  -l, --lpi=LPI          Set number of lines per inch, 6 or 8 (default)\n"
         );
 
     exit(0);
@@ -178,12 +193,14 @@ static const struct option prog_options[] = {
     { "output",  required_argument, NULL, 'o' },
     { "color",   no_argument,       NULL, 'c' },
     { "font",    required_argument, NULL, 'f' },
+    { "quality", required_argument, NULL, 'q' },
+    { "lpi",     required_argument, NULL, 'l' },
     { NULL, 0, NULL, 0 }
 };
 
 static int _handle_args(int argc, char **const argv) {
     int c;
-    while ((c = getopt_long(argc, argv, "hv::i:o:cf:", prog_options, NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, "hv::i:o:cf:q:l:", prog_options, NULL)) >= 0) {
         switch(c) {
             case 'h':
                 _help();
@@ -232,6 +249,28 @@ static int _handle_args(int argc, char **const argv) {
                 opts.font = strtoul(optarg, NULL, 10);
                 if(opts.font > 7) {
                     fprintf(stderr, "Font selection must be a number from 0 to 7!\n");
+                    return -1;
+                }
+                break;
+            case 'q':
+                if(!isdigit(optarg[0])) {
+                    fprintf(stderr, "Quality selection must be a number from 0 to 2!\n");
+                    return -1;
+                }
+                opts.quality = strtoul(optarg, NULL, 10);
+                if(opts.quality > 2) {
+                    fprintf(stderr, "Quality selection must be a number from 0 to 2!\n");
+                    return -1;
+                }
+                break;
+            case 'l':
+                if(!isdigit(optarg[0])) {
+                    fprintf(stderr, "Font selection must be a number from 0 to 7!\n");
+                    return -1;
+                }
+                opts.lpi = strtoul(optarg, NULL, 10);
+                if((opts.lpi != 6) && (opts.lpi != 8)) {
+                    fprintf(stderr, "Lines per inch must be either 6 or 8!\n");
                     return -1;
                 }
                 break;
