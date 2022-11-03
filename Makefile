@@ -10,7 +10,7 @@ EXEC	= ansi2iwii
 CFLAGS	    = -I$(INC) -Wall -Wextra -Werror -O2 -g
 LDFLAGS		=
 
-ifeq ($(CXX), "clang")
+ifeq ($(CC), "clang")
   CFLAGS += -Weverything
 endif
 

@@ -162,6 +162,10 @@ static int _handle_char(char c) {
         } 
         write(opts.fd_out, &c, 1);
         if(opts.flags & OPT_FLAG_STRIKETHROUGH) {
+            /* @note This is highly inefficient, the print head has to move
+             * back and fourth rapidly to cover each character. A potential
+             * optimization would be to keep track of strokethrough works, and
+             * only striking through a line at a time. */
             const char st[] = { '\b', '-' };
             write(opts.fd_out, &st, 2);
         } 
