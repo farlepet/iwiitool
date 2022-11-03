@@ -18,6 +18,7 @@ Currently only a subset of SGR (Screen Graphic Rendition) ANSI escape sequences
 
 | SGR   | Description               | IWII        | Notes                                                 |
 |-------|---------------------------|-------------|-------------------------------------------------------|
+| 0     | Reset                     | (multiple)  |                                                       |
 | 1     | Bold                      | `ESC !`     |                                                       |
 | 3     | Italic                    | `ESC w`     | Approximating using half height text on the IWII side |
 | 4     | Underline                 | `ESC X`     |                                                       |
@@ -58,12 +59,20 @@ Options:
   -i, --input=FILE       Read input from FILE, use `-` for stdin (default)
   -o, --output=FILE      Write output to FILE, use `-` for stdout (default)
   -b, --baud=RATE        Set baud rate to use when output is set to the printer's serial
-                         port. Values 300, 1200, 2400, and 9600 are accepted
-  -F, --flow=MODE        Set flow control mode when using serial as output.
+                         port. Values 300, 1200, 2400, and 9600 (default) are accepted
+  -F, --flow=MODE        Set flow control mode when using serial as output
                            0: None
                            1: XON/XOFF (default)
                            2: RTS/CTS
-  -c, --color            Enable support for color
+  -N, --no-setup         Do not configure printer via escape codes on startup
+  -c, --color[=COLOR]    Enable support for color, set default color if supplied.
+                           0: Black (default)
+                           1: Red
+                           2: Green
+                           3: Yellow
+                           4: Blue
+                           5: Purple
+                           6: Orange
   -f, --font=FONT        Set default font to use:
                            0: Extended
                            1: Pica

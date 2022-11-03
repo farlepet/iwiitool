@@ -16,9 +16,10 @@ typedef struct opts_struct {
     int      fd_in;   /**< Input file descriptor */
     int      fd_out;  /**< Output file descriptor */
     uint32_t flags;   /**< Configuration flags, and default state */
-#define OPT_FLAG_STRIKETHROUGH (1UL <<  0)
-#define OPT_FLAG_CONCEAL       (1UL <<  1)
-#define OPT_FLAG_ENABLECOLOR   (1UL << 31)
+#define OPT_FLAG_STRIKETHROUGH (1UL <<  0) /**< Strikethrough enabled */
+#define OPT_FLAG_CONCEAL       (1UL <<  1) /**< Conceal enabled */
+#define OPT_FLAG_NOSETUP       (1UL << 30) /**< Do not configure printer at startup */
+#define OPT_FLAG_ENABLECOLOR   (1UL << 31) /**< Enable color escape codes */
     uint8_t  font;    /**< Default font to use */
     uint8_t  color;   /**< Default color to use */
     uint8_t  verbose; /**< Program verbosity level */
@@ -63,9 +64,14 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    iwii_set_font(opts.fd_out, opts.font);
-    iwii_set_lpi(opts.fd_out, opts.lpi);
-    iwii_set_quality(opts.fd_out, opts.quality);
+    if(!(opts.flags & OPT_FLAG_NOSETUP)) {
+        iwii_set_font(opts.fd_out, opts.font);
+        iwii_set_lpi(opts.fd_out, opts.lpi);
+        iwii_set_quality(opts.fd_out, opts.quality);
+        if(opts.flags & OPT_FLAG_ENABLECOLOR) {
+            iwii_set_color(opts.fd_out, opts.color);
+        }
+    }
 
     char *buff = malloc(BUFF_SZ);
     if(buff == NULL) {
@@ -152,6 +158,19 @@ static int _setup_serial(void) {
     return 0;
 }
 
+static void _ansi_reset() {
+    opts.flags &= ~(OPT_FLAG_STRIKETHROUGH | OPT_FLAG_CONCEAL);
+    /* No bold, underline, sub/superscript, or italic */
+    const char *reset = "\033\"\033Y\033z\033W";
+    write(opts.fd_out, reset, strlen(reset));
+
+    iwii_set_font(opts.fd_out, opts.font);
+
+    if(opts.flags & OPT_FLAG_ENABLECOLOR) {
+        iwii_set_color(opts.fd_out, opts.color);
+    }
+}
+
 /* Table of single-character ESC code conversion */
 static const char _ansi_iwii_codes[] = {
     [ANSI_SGR_BOLD]                     = '!',
@@ -202,6 +221,9 @@ static int _handle_char(char c) {
                     }
                 } else {
                     switch(sgr) {
+                        case ANSI_SGR_RESET:
+                            _ansi_reset();
+                            break;
                         case ANSI_SGR_STRIKETHROUGH:
                             opts.flags |= OPT_FLAG_STRIKETHROUGH;
                             break;
@@ -265,12 +287,20 @@ static void _help(void) {
          "  -i, --input=FILE       Read input from FILE, use `-` for stdin (default)\n"
          "  -o, --output=FILE      Write output to FILE, use `-` for stdout (default)\n"
          "  -b, --baud=RATE        Set baud rate to use when output is set to the printer's serial\n"
-         "                         port. Values 300, 1200, 2400, and 9600 are accepted\n"
-         "  -F, --flow=MODE        Set flow control mode when using serial as output.\n"
+         "                         port. Values 300, 1200, 2400, and 9600 (default) are accepted\n"
+         "  -F, --flow=MODE        Set flow control mode when using serial as output\n"
          "                           0: None\n"
          "                           1: XON/XOFF (default)\n"
          "                           2: RTS/CTS\n"
-         "  -c, --color            Enable support for color\n"
+         "  -N, --no-setup         Do not configure printer via escape codes on startup\n"
+         "  -c, --color[=COLOR]    Enable support for color, set default color if supplied.\n"
+         "                           0: Black (default)\n"
+         "                           1: Red\n"
+         "                           2: Green\n"
+         "                           3: Yellow\n"
+         "                           4: Blue\n"
+         "                           5: Purple\n"
+         "                           6: Orange\n"
          "  -f, --font=FONT        Set default font to use:\n"
          "                           0: Extended\n"
          "                           1: Pica\n"
@@ -291,22 +321,23 @@ static void _help(void) {
 }
 
 static const struct option prog_options[] = {
-    { "help",    no_argument,       NULL, 'h' },
-    { "verbose", optional_argument, NULL, 'v' },
-    { "input",   required_argument, NULL, 'i' },
-    { "output",  required_argument, NULL, 'o' },
-    { "baud",    required_argument, NULL, 'b' },
-    { "flow",    required_argument, NULL, 'F' },
-    { "color",   no_argument,       NULL, 'c' },
-    { "font",    required_argument, NULL, 'f' },
-    { "quality", required_argument, NULL, 'q' },
-    { "lpi",     required_argument, NULL, 'l' },
+    { "help",     no_argument,       NULL, 'h' },
+    { "verbose",  optional_argument, NULL, 'v' },
+    { "input",    required_argument, NULL, 'i' },
+    { "output",   required_argument, NULL, 'o' },
+    { "baud",     required_argument, NULL, 'b' },
+    { "flow",     required_argument, NULL, 'F' },
+    { "no-setup", no_argument,       NULL, 'N' },
+    { "color",    optional_argument, NULL, 'c' },
+    { "font",     required_argument, NULL, 'f' },
+    { "quality",  required_argument, NULL, 'q' },
+    { "lpi",      required_argument, NULL, 'l' },
     { NULL, 0, NULL, 0 }
 };
 
 static int _handle_args(int argc, char **const argv) {
     int c;
-    while ((c = getopt_long(argc, argv, "hv::i:o:b:F:cf:q:l:", prog_options, NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, "hv::i:o:b:F:Nc::f:q:l:", prog_options, NULL)) >= 0) {
         switch(c) {
             case 'h':
                 _help();
@@ -374,8 +405,22 @@ static int _handle_args(int argc, char **const argv) {
                     return -1;
                 }
                 break;
+            case 'N':
+                opts.flags |= OPT_FLAG_NOSETUP;
+                break;
             case 'c':
                 opts.flags |= OPT_FLAG_ENABLECOLOR;
+                if(optarg) {
+                    if(!isdigit(optarg[0])) {
+                        fprintf(stderr, "Color selection must be a number from 0 to 6!\n");
+                        return -1;
+                    }
+                    opts.color = strtoul(optarg, NULL, 10);
+                    if(opts.font > 6) {
+                        fprintf(stderr, "Color selection must be a number from 0 to 6!\n");
+                        return -1;
+                    }
+                }
                 break;
             case 'f':
                 if(!isdigit(optarg[0])) {
