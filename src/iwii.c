@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -83,6 +84,35 @@ int iwii_set_left_margin(int fd, unsigned left_margin) {
     }
 
     dprintf(fd, "\033L%03u", left_margin);
+
+    return 0;
+}
+
+/** Max tab positions for each font. Assuming minimum for custom fonts to be safe */
+static const uint8_t tab_max[IWII_FONT_MAX] = { 72, 80, 96, 107, 120, 136, 72, 82, 72 };
+
+int iwii_set_tabs(int fd, unsigned tab_size, unsigned font) {
+    if(font > IWII_FONT_MAX) {
+        return -1;
+    }
+
+    /* Start writing tab stops */
+    write(fd, "\033(", 2);
+    /* Get number of tabs for selected spacing */
+    unsigned n = (tab_max[font] / tab_size) - 1;
+    if(n > 32) {
+        n = 32;
+    }
+
+    for(unsigned i = 1; i <= n; i++) {
+        dprintf(fd, "%03u", tab_size * i);
+        if(i < n) {
+            write(fd, ",", 1);
+        }
+    }
+
+    /* Stop writing tab stops */
+    write(fd, ".", 1);
 
     return 0;
 }

@@ -32,6 +32,7 @@ typedef struct opts_struct {
 #define OPT_FLOW_XONXOFF       (1)
 #define OPT_FLOW_RTSCTS        (2)
     speed_t  baud;      /**< Baud rate to use */
+    uint8_t  tab;       /**< Tab spacing */
 } opts_t;
 
 static opts_t opts = {
@@ -46,7 +47,8 @@ static opts_t opts = {
     .quality   = IWII_QUAL_DRAFT,
     .lpi       = 8,
     .flow      = OPT_FLOW_XONXOFF,
-    .baud      = B9600
+    .baud      = B9600,
+    .tab       = 8
 };
 
 static int _setup_serial(void);
@@ -72,6 +74,7 @@ int main(int argc, char **argv) {
         iwii_set_font(opts.fd_out, opts.font);
         iwii_set_lpi(opts.fd_out, opts.lpi);
         iwii_set_quality(opts.fd_out, opts.quality);
+        iwii_set_tabs(opts.fd_out, opts.tab, opts.font);
         if(opts.flags & OPT_FLAG_ENABLECOLOR) {
             iwii_set_color(opts.fd_out, opts.color);
         }
@@ -347,6 +350,8 @@ static void _help(void) {
          "                           1: Standard\n"
          "                           2: Near Letter Quality\n"
          "  -l, --lpi=LPI          Set number of lines per inch, 6 or 8 (default)\n"
+         "  -t, --tab=WIDTH        Set tab width, in characters (default is 8)\n"
+         "                         NOTE: Tab positions are relative to the starting font.\n"
         );
 
     exit(0);
@@ -364,12 +369,13 @@ static const struct option prog_options[] = {
     { "font",     required_argument, NULL, 'f' },
     { "quality",  required_argument, NULL, 'q' },
     { "lpi",      required_argument, NULL, 'l' },
+    { "tab",      required_argument, NULL, 't' },
     { NULL, 0, NULL, 0 }
 };
 
 static int _handle_args(int argc, char **const argv) {
     int c;
-    while ((c = getopt_long(argc, argv, "hv::i:o:b:F:Nc::f:q:l:", prog_options, NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, "hv::i:o:b:F:Nc::f:q:l:t:", prog_options, NULL)) >= 0) {
         switch(c) {
             case 'h':
                 _help();
@@ -478,12 +484,23 @@ static int _handle_args(int argc, char **const argv) {
                 break;
             case 'l':
                 if(!isdigit(optarg[0])) {
-                    fprintf(stderr, "Font selection must be a number from 0 to 7!\n");
+                    fprintf(stderr, "Lines per inch must be either 6 to 8!\n");
                     return -1;
                 }
                 opts.lpi = strtoul(optarg, NULL, 10);
                 if((opts.lpi != 6) && (opts.lpi != 8)) {
                     fprintf(stderr, "Lines per inch must be either 6 or 8!\n");
+                    return -1;
+                }
+                break;
+            case 't':
+                if(!isdigit(optarg[0])) {
+                    fprintf(stderr, "Tab spacing must be a number from 2 to 32!\n");
+                    return -1;
+                }
+                opts.tab = strtoul(optarg, NULL, 10);
+                if((opts.tab < 2) || (opts.tab > 32)) {
+                    fprintf(stderr, "Tab spacing must be a number from 2 to 32!\n");
                     return -1;
                 }
                 break;

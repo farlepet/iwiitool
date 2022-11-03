@@ -84,10 +84,13 @@ Options:
                            5: Ultracondensed
                            6: Pica proportional
                            7: Elite proportional
+                           8: Custom
   -q, --quality=QUAL     Set print quality to use:
                            0: Draft (default)
                            1: Standard
                            2: Near Letter Quality
   -l, --lpi=LPI          Set number of lines per inch, 6 or 8 (default)
+  -t, --tab=WIDTH        Set tab width, in characters (default is 8)
+                         NOTE: Tab positions are relative to the starting font.
 ```
 

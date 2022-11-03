@@ -32,5 +32,7 @@ int iwii_set_quality(int fd, unsigned quality);
 
 int iwii_set_left_margin(int fd, unsigned left_margin);
 
+int iwii_set_tabs(int fd, unsigned tab_size, unsigned font);
+
 #endif
 
