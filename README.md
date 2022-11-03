@@ -41,7 +41,11 @@ Usage
 -----
 
 The main intended use of `ansi2iwii` is to be used as an intermediate program
-between a program generating text, and the printer's serial port.
+between a program generating text, and the printer's serial port. e.g.:
+
+```
+... | ansi2iwii -o /dev/ttyUSB0
+```
 
 ```
 $ ./ansi2iwii --help
@@ -49,9 +53,16 @@ ansi2iwii: Convert ANSI escape codes to Apple ImageWriter II escape codes
 
 Options:
   -h, --help             Display this help message
-  -v, --verbose[=LEVEL]  Increase verbosity, can be supplied multiple times, or desired verbosity can be directly supplied
+  -v, --verbose[=LEVEL]  Increase verbosity, can be supplied multiple times, or desired
+                         verbosity can be directly supplied
   -i, --input=FILE       Read input from FILE, use `-` for stdin (default)
-  -o, --output=FILE      (experimental) Write output to FILE, use `-` for stdout (default)
+  -o, --output=FILE      Write output to FILE, use `-` for stdout (default)
+  -b, --baud=RATE        Set baud rate to use when output is set to the printer's serial
+                         port. Values 300, 1200, 2400, and 9600 are accepted
+  -F, --flow=MODE        Set flow control mode when using serial as output.
+                           0: None
+                           1: XON/XOFF (default)
+                           2: RTS/CTS
   -c, --color            Enable support for color
   -f, --font=FONT        Set default font to use:
                            0: Extended
