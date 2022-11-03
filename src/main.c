@@ -15,7 +15,6 @@ typedef struct opts_struct {
     int      fd_in;   /**< Input file descriptor */
     int      fd_out;  /**< Output file descriptor */
     uint32_t flags;   /**< Configuration flags, and default state */
-#define OPT_FLAG_VERBOSE     (1UL << 30)
 #define OPT_FLAG_ENABLECOLOR (1UL << 31)
     uint8_t  font;    /**< Default font to use */
     uint8_t  color;   /**< Default color to use */
@@ -109,10 +108,23 @@ static int _handle_char(char c) {
                (_ansi_iwii_codes[sgr] != 0)) {
                 dprintf(opts.fd_out, "\033%c", _ansi_iwii_codes[sgr]);
             } else {
-                switch(sgr) {
-                    default:
-                        /* Unsupported SGR */
-                        goto ansi_error;
+                if((sgr >= ANSI_SGR_FONT_START) &&
+                   (sgr < (ANSI_SGR_FONT_START + IWII_FONT_MAX))) {
+                    iwii_set_font(opts.fd_out, sgr - ANSI_SGR_FONT_START);
+                } else if((sgr >= ANSI_SGR_FOREGROUND_START) &&
+                          (sgr <= ANSI_SGR_FOREGROUND_END)) {
+                    if(opts.flags & OPT_FLAG_ENABLECOLOR) {
+                        iwii_set_color(opts.fd_out, sgr - ANSI_SGR_FOREGROUND_START);
+                    }
+                } else {
+                    switch(sgr) {
+                        case ANSI_SGR_FONT_PRIMARY:
+                            iwii_set_font(opts.fd_out, opts.font);
+                            break;
+                        default:
+                            /* Unsupported SGR */
+                            goto ansi_error;
+                    }
                 }
             }
             ansi_pos = 0;
@@ -144,11 +156,11 @@ static void _help(void) {
          "  -v, --verbose[=LEVEL]  Increase verbosity, can be supplied multiple times, or desired verbosity can be directly supplied\n"
          "  -i, --input=FILE       Read input from FILE, use `-` for stdin (default)\n"
          "  -o, --output=FILE      (experimental) Write output to FILE, use `-` for stdout (default)\n"
-         "  -c, --color            (experimental) Enable support for color\n"
+         "  -c, --color            Enable support for color\n"
          "  -f, --font=FONT        Set default font to use:\n"
          "                           0: Extended\n"
          "                           1: Pica\n"
-         "                           2: Elite\n"
+         "                           2: Elite (default)\n"
          "                           3: Semicondensed\n"
          "                           4: Condensed\n"
          "                           5: Ultracondensed\n"
