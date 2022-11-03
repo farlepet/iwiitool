@@ -10,6 +10,7 @@ typedef enum iwii_font_enum {
     IWII_FONT_ULTRACONDENSED,
     IWII_FONT_PROPORTIONAL_PICA,
     IWII_FONT_PROPORTIONAL_ELITE,
+    IWII_FONT_CUSTOM,
     IWII_FONT_MAX
 } iwii_font_e;
 

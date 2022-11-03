@@ -35,6 +35,7 @@ static const char iwii_font[] = {
     [IWII_FONT_ULTRACONDENSED]     = 'Q',
     [IWII_FONT_PROPORTIONAL_PICA]  = 'p',
     [IWII_FONT_PROPORTIONAL_ELITE] = 'P',
+    [IWII_FONT_CUSTOM]             = '\'',
 };
 
 int iwii_set_font(int fd, unsigned font) {

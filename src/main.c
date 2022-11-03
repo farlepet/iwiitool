@@ -13,36 +13,40 @@
 #include "ansi_escape.h"
 
 typedef struct opts_struct {
-    int      fd_in;   /**< Input file descriptor */
-    int      fd_out;  /**< Output file descriptor */
-    uint32_t flags;   /**< Configuration flags, and default state */
+    int      fd_in;     /**< Input file descriptor */
+    int      fd_out;    /**< Output file descriptor */
+    uint32_t flags;     /**< Configuration flags, and default state */
 #define OPT_FLAG_STRIKETHROUGH (1UL <<  0) /**< Strikethrough enabled */
 #define OPT_FLAG_CONCEAL       (1UL <<  1) /**< Conceal enabled */
 #define OPT_FLAG_NOSETUP       (1UL << 30) /**< Do not configure printer at startup */
 #define OPT_FLAG_ENABLECOLOR   (1UL << 31) /**< Enable color escape codes */
-    uint8_t  font;    /**< Default font to use */
-    uint8_t  color;   /**< Default color to use */
-    uint8_t  verbose; /**< Program verbosity level */
-    uint8_t  lpi;     /**< Default lines per inch */
-    uint8_t  quality; /**< Default print quality */
-    uint8_t  flow;    /**< Flow control method to use */
+    uint8_t  font;      /**< Default font to use */
+    uint8_t  font_curr; /**< Font currently in use */
+    uint8_t  font_save; /**< Saved font when switching to proportional */
+    uint8_t  color;     /**< Default color to use */
+    uint8_t  verbose;   /**< Program verbosity level */
+    uint8_t  lpi;       /**< Default lines per inch */
+    uint8_t  quality;   /**< Default print quality */
+    uint8_t  flow;      /**< Flow control method to use */
 #define OPT_FLOW_NONE          (0)
 #define OPT_FLOW_XONXOFF       (1)
 #define OPT_FLOW_RTSCTS        (2)
-    speed_t  baud;    /**< Baud rate to use */
+    speed_t  baud;      /**< Baud rate to use */
 } opts_t;
 
 static opts_t opts = {
-    .fd_in   = STDIN_FILENO,
-    .fd_out  = STDOUT_FILENO,
-    .flags   = 0,
-    .font    = IWII_FONT_ELITE,
-    .color   = ANSI_COLOR_BLACK,
-    .verbose = 0,
-    .quality = IWII_QUAL_DRAFT,
-    .lpi     = 8,
-    .flow    = OPT_FLOW_XONXOFF,
-    .baud    = B9600
+    .fd_in     = STDIN_FILENO,
+    .fd_out    = STDOUT_FILENO,
+    .flags     = 0,
+    .font      = IWII_FONT_ELITE,
+    .font_curr = IWII_FONT_ELITE,
+    .font_save = 0xff,
+    .color     = ANSI_COLOR_BLACK,
+    .verbose   = 0,
+    .quality   = IWII_QUAL_DRAFT,
+    .lpi       = 8,
+    .flow      = OPT_FLOW_XONXOFF,
+    .baud      = B9600
 };
 
 static int _setup_serial(void);
@@ -213,7 +217,8 @@ static int _handle_char(char c) {
             } else {
                 if((sgr >= ANSI_SGR_FONT_START) &&
                    (sgr < (ANSI_SGR_FONT_START + IWII_FONT_MAX))) {
-                    iwii_set_font(opts.fd_out, sgr - ANSI_SGR_FONT_START);
+                    opts.font_curr = sgr - ANSI_SGR_FONT_START;
+                    iwii_set_font(opts.fd_out, opts.font_curr);
                 } else if((sgr >= ANSI_SGR_FOREGROUND_START) &&
                           (sgr <= ANSI_SGR_FOREGROUND_END)) {
                     if(opts.flags & OPT_FLAG_ENABLECOLOR) {
@@ -237,7 +242,33 @@ static int _handle_char(char c) {
                             opts.flags &= ~OPT_FLAG_CONCEAL;
                             break;
                         case ANSI_SGR_FONT_PRIMARY:
-                            iwii_set_font(opts.fd_out, opts.font);
+                            opts.font_curr = opts.font;
+                            iwii_set_font(opts.fd_out, opts.font_curr);
+                            break;
+                        case ANSI_SGR_PROPORTIONAL_SPACING:
+                            if((opts.font_curr == IWII_FONT_PROPORTIONAL_PICA) ||
+                               (opts.font_curr == IWII_FONT_PROPORTIONAL_ELITE)) {
+                                /* Already proportional */
+                                break;
+                            }
+                            opts.font_save = opts.font_curr;
+                            opts.font_curr = (opts.font_save >= IWII_FONT_ELITE) ? IWII_FONT_PROPORTIONAL_ELITE :
+                                                                                   IWII_FONT_PROPORTIONAL_PICA;
+                            iwii_set_font(opts.fd_out, opts.font_curr);
+                            break;
+                        case ANSI_SGR_NO_PROPORTIONAL_SPACING:
+                            if((opts.font_curr != IWII_FONT_PROPORTIONAL_PICA) &&
+                               (opts.font_curr != IWII_FONT_PROPORTIONAL_ELITE)) {
+                                /* Already fixed-width (assuming custom font is fixed) */
+                                break;
+                            }
+                            if(opts.font_save != 0xff) {
+                                opts.font_curr = opts.font_save;
+                            } else {
+                                opts.font_curr = (opts.font_curr == IWII_FONT_PROPORTIONAL_ELITE) ? IWII_FONT_ELITE :
+                                                                                                    IWII_FONT_PICA;
+                            }
+                            iwii_set_font(opts.fd_out, opts.font_curr);
                             break;
                         default:
                             /* Unsupported SGR */
@@ -310,6 +341,7 @@ static void _help(void) {
          "                           5: Ultracondensed\n"
          "                           6: Pica proportional\n"
          "                           7: Elite proportional\n"
+         "                           8: Custom\n"
          "  -q, --quality=QUAL     Set print quality to use:\n"
          "                           0: Draft (default)\n"
          "                           1: Standard\n"
@@ -424,12 +456,12 @@ static int _handle_args(int argc, char **const argv) {
                 break;
             case 'f':
                 if(!isdigit(optarg[0])) {
-                    fprintf(stderr, "Font selection must be a number from 0 to 7!\n");
+                    fprintf(stderr, "Font selection must be a number from 0 to 8!\n");
                     return -1;
                 }
                 opts.font = strtoul(optarg, NULL, 10);
-                if(opts.font > 7) {
-                    fprintf(stderr, "Font selection must be a number from 0 to 7!\n");
+                if(opts.font > 8) {
+                    fprintf(stderr, "Font selection must be a number from 0 to 8!\n");
                     return -1;
                 }
                 break;
