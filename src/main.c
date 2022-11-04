@@ -242,54 +242,54 @@ static int _identify(void) {
 }
 
 static int _apply_config(void) {
-    if(opts.cfgflags & OPT_SETFLAG_FONT) {
+    if(opts.setflags & OPT_SETFLAG_FONT) {
         iwii_set_font(opts.fd_out, opts.font);
     }
-    if(opts.cfgflags & OPT_SETFLAG_QUALITY) {
+    if(opts.setflags & OPT_SETFLAG_QUALITY) {
         iwii_set_quality(opts.fd_out, opts.quality);
     }
     if((opts.flags & OPT_FLAG_ENABLECOLOR) &&
-       (opts.cfgflags & OPT_SETFLAG_COLOR)) {
+       (opts.setflags & OPT_SETFLAG_COLOR)) {
         iwii_set_color(opts.fd_out, opts.color);
     }
-    if(opts.cfgflags & OPT_SETFLAG_TAB) {
+    if(opts.setflags & OPT_SETFLAG_TAB) {
         iwii_set_tabs(opts.fd_out, opts.tab, opts.font);
     }
-    if(opts.cfgflags & OPT_SETFLAG_LINESPERINCH) {
+    if(opts.setflags & OPT_SETFLAG_LINESPERINCH) {
         iwii_set_lpi(opts.fd_out, opts.lpi);
     }
-    if(opts.cfgflags & OPT_SETFLAG_LINESPACING) {
+    if(opts.setflags & OPT_SETFLAG_LINESPACING) {
         iwii_set_line_spacing(opts.fd_out, opts.linespacing);
     }
     
-    if(opts.cfgflags & OPT_SETFLAG_LEFTMARGIN) {
+    if(opts.setflags & OPT_SETFLAG_LEFTMARGIN) {
         iwii_set_left_margin(opts.fd_out, opts.leftmargin);
     }
-    if(opts.cfgflags & OPT_SETFLAG_PAGELEN) {
+    if(opts.setflags & OPT_SETFLAG_PAGELEN) {
         iwii_set_pagelen(opts.fd_out, opts.pagelen);
     }
-    if(opts.cfgflags & OPT_SETFLAG_PROPSPACING) {
+    if(opts.setflags & OPT_SETFLAG_PROPSPACING) {
         iwii_set_prop_spacing(opts.fd_out, opts.propspacing);
     }
     
-    if(opts.cfgflags & OPT_SETFLAG_SKIPPERFORATION) {
-        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_SKIPPERFORATION) ? "\033D\x00\x04"
+    if(opts.setflags & OPT_SETFLAG_SKIPPERFORATION) {
+        write(opts.fd_out, (opts.cfgflags & OPT_CFGFLAG_SKIPPERFORATION) ? "\033D\x00\x04"
                                                                          : "\033Z\x00\x04", 4);
     }
-    if(opts.cfgflags & OPT_SETFLAG_UNIDIRECTIONAL) {
-        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_UNIDIRECTIONAL) ? "\033>"
+    if(opts.setflags & OPT_SETFLAG_UNIDIRECTIONAL) {
+        write(opts.fd_out, (opts.cfgflags & OPT_CFGFLAG_UNIDIRECTIONAL) ? "\033>"
                                                                         : "\033<", 2);
     }
-    if(opts.cfgflags & OPT_SETFLAG_AUTOLINEFEED) {
-        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_AUTOLINEFEED) ? "\033D \x00"
+    if(opts.setflags & OPT_SETFLAG_AUTOLINEFEED) {
+        write(opts.fd_out, (opts.cfgflags & OPT_CFGFLAG_AUTOLINEFEED) ? "\033D \x00"
                                                                       : "\033Z \x00", 4);
     }
-    if(opts.cfgflags & OPT_SETFLAG_SLASHEDZERO) {
-        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_SLASHEDZERO) ? "\033D\x00\x01"
+    if(opts.setflags & OPT_SETFLAG_SLASHEDZERO) {
+        write(opts.fd_out, (opts.cfgflags & OPT_CFGFLAG_SLASHEDZERO) ? "\033D\x00\x01"
                                                                      : "\033Z\x00\x01", 4);
     }
-    if(opts.cfgflags & OPT_SETFLAG_DOUBLEWIDTH) {
-        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_DOUBLEWIDTH) ? "\x0e"
+    if(opts.setflags & OPT_SETFLAG_DOUBLEWIDTH) {
+        write(opts.fd_out, (opts.cfgflags & OPT_CFGFLAG_DOUBLEWIDTH) ? "\x0e"
                                                                      : "\x0f", 1);
     }
 
@@ -639,21 +639,26 @@ static int _handle_args(int argc, char **const argv) {
                 break;
 
             case 'f':
+                opts.setflags |= OPT_SETFLAG_FONT;
                 _get_number(0, 8, "Font selection", opts.font);
                 break;
             case 'q':
+                opts.setflags |= OPT_SETFLAG_QUALITY;
                 _get_number(0, 2, "Quality selection", opts.quality);
                 break;
             case 'c':
                 opts.flags |= OPT_FLAG_ENABLECOLOR;
                 if(optarg) {
+                    opts.setflags |= OPT_SETFLAG_COLOR;
                     _get_number(0, 6, "Color selection", opts.color);
                 }
                 break;
             case 't':
+                opts.setflags |= OPT_SETFLAG_TAB;
                 _get_number(2, 32, "Tab spacing", opts.tab);
                 break;
             case 'l':
+                opts.setflags |= OPT_SETFLAG_LINESPERINCH;
                 if(!isdigit(optarg[0])) {
                     fprintf(stderr, "Lines per inch must be either 6 to 8!\n");
                     return -1;
@@ -665,33 +670,42 @@ static int _handle_args(int argc, char **const argv) {
                 }
                 break;
             case 'L':
+                opts.setflags |= OPT_SETFLAG_LINESPACING;
                 _get_number(1, 99, "Line spacing", opts.linespacing);
                 break;
             
             case 'M':
+                opts.setflags |= OPT_SETFLAG_LEFTMARGIN;
                 /* The maximum technically depends on the selected font */
                 _get_number(0, 136, "Left margin", opts.leftmargin);
                 break;
             case 'p':
+                opts.setflags |= OPT_SETFLAG_PAGELEN;
                 _get_number(1, 9999, "Page length", opts.pagelen);
                 break;
             case 'P':
+                opts.setflags |= OPT_SETFLAG_SKIPPERFORATION;
                 _get_optbool(opts.cfgflags, OPT_CFGFLAG_SKIPPERFORATION);
                 break;
             
             case 'U':
+                opts.setflags |= OPT_SETFLAG_UNIDIRECTIONAL;
                 _get_optbool(opts.cfgflags, OPT_CFGFLAG_UNIDIRECTIONAL);
                 break;
             case 'A':
+                opts.setflags |= OPT_SETFLAG_AUTOLINEFEED;
                 _get_optbool(opts.cfgflags, OPT_CFGFLAG_AUTOLINEFEED);
                 break;
             case 'Z':
+                opts.setflags |= OPT_SETFLAG_SLASHEDZERO;
                 _get_optbool(opts.cfgflags, OPT_CFGFLAG_SLASHEDZERO);
                 break;
             case 'D':
+                opts.setflags |= OPT_SETFLAG_DOUBLEWIDTH;
                 _get_optbool(opts.cfgflags, OPT_CFGFLAG_DOUBLEWIDTH);
                 break;
             case 'S':
+                opts.setflags |= OPT_SETFLAG_FONT;
                 _get_number(0, 9, "Proportional spacing", opts.propspacing);
                 break;
 
