@@ -54,43 +54,62 @@ between a program generating text, and the printer's serial port. e.g.:
 $ ./ansi2iwii --help
 ansi2iwii: Convert ANSI escape codes to Apple ImageWriter II escape codes
 
-Options:
-  -h, --help             Display this help message
-  -v, --verbose[=LEVEL]  Increase verbosity, can be supplied multiple times, or desired
-                         verbosity can be directly supplied
-  -i, --input=FILE       Read input from FILE, use `-` for stdin (default)
-  -o, --output=FILE      Write output to FILE, use `-` for stdout (default)
-  -b, --baud=RATE        Set baud rate to use when output is set to the printer's serial
-                         port. Values 300, 1200, 2400, and 9600 (default) are accepted
-  -F, --flow=MODE        Set flow control mode when using serial as output
-                           0: None
-                           1: XON/XOFF (default)
-                           2: RTS/CTS
-  -N, --no-setup         Do not configure printer via escape codes on startup
-  -c, --color[=COLOR]    Enable support for color, set default color if supplied.
-                           0: Black (default)
-                           1: Red
-                           2: Green
-                           3: Yellow
-                           4: Blue
-                           5: Purple
-                           6: Orange
-  -f, --font=FONT        Set default font to use:
-                           0: Extended
-                           1: Pica
-                           2: Elite (default)
-                           3: Semicondensed
-                           4: Condensed
-                           5: Ultracondensed
-                           6: Pica proportional
-                           7: Elite proportional
-                           8: Custom
-  -q, --quality=QUAL     Set print quality to use:
-                           0: Draft (default)
-                           1: Standard
-                           2: Near Letter Quality
-  -l, --lpi=LPI          Set number of lines per inch, 6 or 8 (default)
-  -t, --tab=WIDTH        Set tab width, in characters (default is 8)
-                         NOTE: Tab positions are relative to the starting font.
+Basic Options:
+  -i, --input=FILE          Read input from FILE, use `-` for stdin (default)
+  -o, --output=FILE         Write output to FILE, use `-` for stdout (default)
+  -b, --baud=RATE           Set baud rate to use when output is set to the printer's serial
+                            port. Values 300, 1200, 2400, and 9600 (default) are accepted
+  -F, --flow=MODE           Set flow control mode when using serial as output
+                              0: None
+                              1: XON/XOFF (default)
+                              2: RTS/CTS
+  -N, --no-setup            Do not configure printer via escape codes on startup
+
+Common Format Options:
+  -f, --font=FONT           Set default font to use:
+                              0: Extended
+                              1: Pica
+                              2: Elite (default)
+                              3: Semicondensed
+                              4: Condensed
+                              5: Ultracondensed
+                              6: Pica proportional
+                              7: Elite proportional
+                              8: Custom
+  -q, --quality=QUAL        Set print quality to use:
+                              0: Draft (default)
+                              1: Standard
+                              2: Near Letter Quality
+  -c, --color[=COLOR]       Enable support for color, set default color if supplied.
+                              0: Black (default)
+                              1: Red
+                              2: Green
+                              3: Yellow
+                              4: Blue
+                              5: Purple
+                              6: Orange
+  -t, --tab=WIDTH           Set tab width, in characters (default is 8)
+                            NOTE: Tab positions are relative to the starting font
+  -l, --lpi=LPI             Set number of lines per inch, 6 (default) or 8
+  -L, --line-spacing=SPACE  Set spacing between lines, in 144ths of an inch (1-99)
+
+Page Settings:
+  -M, --left-margin=MARGIN     Set left margin in characters
+  -p, --pagelen=LENGTH         Set page length in 144ths of an inch
+  -P, --skip-perforation[=EN]  Enable/disable continuous-form perforation skip
+
+Misc. Print Settings:
+  -U, --unidirectional[=EN]    Enable/disable unidirectional printing
+  -A, --auto-linefeed[=EN]     Enable/disable automatic linefeed at end of line
+  -Z, --slashed-zero[=EN]      Enable/disable slashed-zeros
+  -D, --double-width[=EN]      Enable/disable double-width
+  -S, --prop-spacing=DOTS      Set proportional dot spacing (0-9)
+
+Miscellaneous:
+  -I, --identify            Retrieve printer identification and exit
+                            NOTE: Must be provided prior to specifying output
+  -h, --help                Display this help message
+  -v, --verbose[=LEVEL]     Increase verbosity, can be supplied multiple times, or desired
+                            verbosity can be directly supplied
 ```
 

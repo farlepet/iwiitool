@@ -5,28 +5,6 @@
 #include "ansi_escape.h"
 #include "iwii.h"
 
-static const char iwii_color[] = {
-    [ANSI_COLOR_BLACK]   = '0',
-    [ANSI_COLOR_RED]     = '2',
-    [ANSI_COLOR_GREEN]   = '5',
-    [ANSI_COLOR_YELLOW]  = '1',
-    [ANSI_COLOR_BLUE]    = '3',
-    [ANSI_COLOR_MAGENTA] = '6',
-    [ANSI_COLOR_CYAN]    = '4', /* Cyan does not exist, mapping to orange instead */
-    [ANSI_COLOR_WHITE]   = '0'  /* White would be no printing at all, mapping to black */
-};
-
-int iwii_set_color(int fd, unsigned color) {
-    if(color >= ANSI_COLOR_MAX) {
-        return -1;
-    }
-
-    char cmd[] = { '\033', 'K', iwii_color[color] };
-    write(fd, &cmd, sizeof(cmd));
-
-    return 0;
-}
-
 static const char iwii_font[] = {
     [IWII_FONT_EXTENDED]           = 'n',
     [IWII_FONT_PICA]               = 'N',
@@ -50,17 +28,6 @@ int iwii_set_font(int fd, unsigned font) {
     return 0;
 }
 
-int iwii_set_lpi(int fd, unsigned lpi) {
-    if((lpi != 6) && (lpi != 8)) {
-        return -1;
-    }
-
-    char cmd[] = { '\033', (lpi == 6) ? 'A' : 'B' };
-    write(fd, &cmd, sizeof(cmd));
-
-    return 0;
-}
-
 static const char iwii_quality[] = {
     [IWII_QUAL_DRAFT]             = '1',
     [IWII_QUAL_STANDARD]          = '0',
@@ -78,12 +45,24 @@ int iwii_set_quality(int fd, unsigned quality) {
     return 0;
 }
 
-int iwii_set_left_margin(int fd, unsigned left_margin) {
-    if(left_margin > 300) {
+static const char iwii_color[] = {
+    [ANSI_COLOR_BLACK]   = '0',
+    [ANSI_COLOR_RED]     = '2',
+    [ANSI_COLOR_GREEN]   = '5',
+    [ANSI_COLOR_YELLOW]  = '1',
+    [ANSI_COLOR_BLUE]    = '3',
+    [ANSI_COLOR_MAGENTA] = '6',
+    [ANSI_COLOR_CYAN]    = '4', /* Cyan does not exist, mapping to orange instead */
+    [ANSI_COLOR_WHITE]   = '0'  /* White would be no printing at all, mapping to black */
+};
+
+int iwii_set_color(int fd, unsigned color) {
+    if(color >= ANSI_COLOR_MAX) {
         return -1;
     }
 
-    dprintf(fd, "\033L%03u", left_margin);
+    char cmd[] = { '\033', 'K', iwii_color[color] };
+    write(fd, &cmd, sizeof(cmd));
 
     return 0;
 }
@@ -113,6 +92,61 @@ int iwii_set_tabs(int fd, unsigned tab_size, unsigned font) {
 
     /* Stop writing tab stops */
     write(fd, ".", 1);
+
+    return 0;
+}
+
+int iwii_set_lpi(int fd, unsigned lpi) {
+    if((lpi != 6) && (lpi != 8)) {
+        return -1;
+    }
+
+    char cmd[] = { '\033', (lpi == 6) ? 'A' : 'B' };
+    write(fd, &cmd, sizeof(cmd));
+
+    return 0;
+}
+
+int iwii_set_line_spacing(int fd, unsigned line_spacing) {
+    if((line_spacing < 1) ||
+       (line_spacing > 99)) {
+        return -1;
+    }
+
+    dprintf(fd, "\033T%02u", line_spacing);
+
+    return 0;
+}
+
+
+
+
+int iwii_set_left_margin(int fd, unsigned left_margin) {
+    if(left_margin > 300) {
+        return -1;
+    }
+
+    dprintf(fd, "\033L%03u", left_margin);
+
+    return 0;
+}
+int iwii_set_pagelen(int fd, unsigned pagelen) {
+    if((pagelen < 1) ||
+       (pagelen > 9999)) {
+        return -1;
+    }
+
+    dprintf(fd, "\033H%04u", pagelen);
+
+    return 0;
+}
+
+int iwii_set_prop_spacing(int fd, unsigned prop_spacing) {
+    if(prop_spacing > 9) {
+        return -1;
+    }
+
+    dprintf(fd, "\033s%u", prop_spacing);
 
     return 0;
 }

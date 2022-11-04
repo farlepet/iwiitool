@@ -22,17 +22,25 @@ typedef enum iwii_quality_enum {
 } iwii_quality_e;
 
 
-int iwii_set_color(int fd, unsigned color);
 
 int iwii_set_font(int fd, unsigned font);
 
+int iwii_set_quality(int fd, unsigned quality);
+
+int iwii_set_color(int fd, unsigned color);
+
+int iwii_set_tabs(int fd, unsigned tab_size, unsigned font);
+
 int iwii_set_lpi(int fd, unsigned lpi);
 
-int iwii_set_quality(int fd, unsigned quality);
+int iwii_set_line_spacing(int fd, unsigned line_spacing);
+
 
 int iwii_set_left_margin(int fd, unsigned left_margin);
 
-int iwii_set_tabs(int fd, unsigned tab_size, unsigned font);
+int iwii_set_pagelen(int fd, unsigned pagelen);
+
+int iwii_set_prop_spacing(int fd, unsigned prop_spacing);
 
 #endif
 

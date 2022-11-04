@@ -13,45 +13,90 @@
 #include "ansi_escape.h"
 
 typedef struct opts_struct {
+/* I/O Config */
     int      fd_in;     /**< Input file descriptor */
     int      fd_out;    /**< Output file descriptor */
-    uint32_t flags;     /**< Configuration flags, and default state */
-#define OPT_FLAG_STRIKETHROUGH (1UL <<  0) /**< Strikethrough enabled */
-#define OPT_FLAG_CONCEAL       (1UL <<  1) /**< Conceal enabled */
-#define OPT_FLAG_NOSETUP       (1UL << 30) /**< Do not configure printer at startup */
-#define OPT_FLAG_ENABLECOLOR   (1UL << 31) /**< Enable color escape codes */
-    uint8_t  font;      /**< Default font to use */
-    uint8_t  font_curr; /**< Font currently in use */
-    uint8_t  font_save; /**< Saved font when switching to proportional */
-    uint8_t  color;     /**< Default color to use */
-    uint8_t  verbose;   /**< Program verbosity level */
-    uint8_t  lpi;       /**< Default lines per inch */
-    uint8_t  quality;   /**< Default print quality */
     uint8_t  flow;      /**< Flow control method to use */
 #define OPT_FLOW_NONE          (0)
 #define OPT_FLOW_XONXOFF       (1)
 #define OPT_FLOW_RTSCTS        (2)
     speed_t  baud;      /**< Baud rate to use */
-    uint8_t  tab;       /**< Tab spacing */
+
+/* Configuration */
+    uint8_t  verbose;   /**< Program verbosity level */
+    uint32_t setflags;  /**< Set of flags of which settings to apply */
+#define OPT_SETFLAG_FONT            (1UL <<  0)
+#define OPT_SETFLAG_COLOR           (1UL <<  1)
+#define OPT_SETFLAG_QUALITY         (1UL <<  2)
+#define OPT_SETFLAG_TAB             (1UL <<  3)
+#define OPT_SETFLAG_LINESPERINCH    (1UL <<  4)
+#define OPT_SETFLAG_LINESPACING     (1UL <<  5)
+#define OPT_SETFLAG_LEFTMARGIN      (1UL <<  6)
+#define OPT_SETFLAG_PAGELEN         (1UL <<  7)
+#define OPT_SETFLAG_SKIPPERFORATION (1UL <<  8)
+#define OPT_SETFLAG_UNIDIRECTIONAL  (1UL <<  9)
+#define OPT_SETFLAG_AUTOLINEFEED    (1UL << 10)
+#define OPT_SETFLAG_SLASHEDZERO     (1UL << 11)
+#define OPT_SETFLAG_DOUBLEWIDTH     (1UL << 12)
+#define OPT_SETFLAG_PROPSPACING     (1UL << 13)
+    uint8_t  font;        /**< Default font to use */
+    uint8_t  quality;     /**< Default print quality */
+    uint8_t  color;       /**< Default color to use */
+    uint8_t  tab;         /**< Tab spacing */
+    uint8_t  lpi;         /**< Default lines per inch */
+    uint8_t  linespacing; /**< Line spacing */
+    
+    uint8_t  leftmargin;  /**< Left margin */
+    uint16_t pagelen;     /**< Page length */
+    uint8_t  cfgflags;    /**< Config en/disable flags */
+#define OPT_CFGFLAG_SKIPPERFORATION (1UL << 0) /**< Skip page perforation */
+#define OPT_CFGFLAG_UNIDIRECTIONAL  (1UL << 1) /**< Print in only one direction */
+#define OPT_CFGFLAG_AUTOLINEFEED    (1UL << 2) /**< Automatically Insert line feed at end of line */
+#define OPT_CFGFLAG_SLASHEDZERO     (1UL << 3) /**< Use slashed zero */
+#define OPT_CFGFLAG_DOUBLEWIDTH     (1UL << 4) /**< Double-width characters */
+    uint8_t  propspacing; /**< Proportional character spacing */
+
+/* State variables */
+    uint32_t flags;     /**< Configuration flags, and default state */
+#define OPT_FLAG_STRIKETHROUGH      (1UL <<  0) /**< Strikethrough enabled */
+#define OPT_FLAG_CONCEAL            (1UL <<  1) /**< Conceal enabled */
+#define OPT_FLAG_IDENTIFY           (1UL << 29) /**< Request identity from printer */
+#define OPT_FLAG_NOSETUP            (1UL << 30) /**< Do not configure printer at startup */
+#define OPT_FLAG_ENABLECOLOR        (1UL << 31) /**< Enable color escape codes */
+    uint8_t  font_curr; /**< Font currently in use */
+    uint8_t  font_save; /**< Saved font when switching to proportional */
 } opts_t;
 
 static opts_t opts = {
+/* I/O Config */
     .fd_in     = STDIN_FILENO,
     .fd_out    = STDOUT_FILENO,
-    .flags     = 0,
-    .font      = IWII_FONT_ELITE,
-    .font_curr = IWII_FONT_ELITE,
-    .font_save = 0xff,
-    .color     = ANSI_COLOR_BLACK,
-    .verbose   = 0,
-    .quality   = IWII_QUAL_DRAFT,
-    .lpi       = 8,
     .flow      = OPT_FLOW_XONXOFF,
     .baud      = B9600,
-    .tab       = 8
+
+/* Config */
+    .verbose     = 0,
+    .setflags    = OPT_SETFLAG_FONT | OPT_SETFLAG_TAB,
+    .font        = IWII_FONT_ELITE,
+    .quality     = IWII_QUAL_DRAFT,
+    .color       = ANSI_COLOR_BLACK,
+    .tab         = 8,
+    .lpi         = 0,
+    .linespacing = 0,
+    .leftmargin  = 0,
+    .pagelen     = 0,
+    .cfgflags    = 0,
+
+/* State variables */
+#define OPT_FLAG_NOSETUP            (1UL << 30) /**< Do not configure printer at startup */
+    .flags     = 0,
+    .font_curr = IWII_FONT_ELITE,
+    .font_save = 0xff
 };
 
 static int _setup_serial(void);
+static int _identify(void);
+static int _apply_config(void);
 static int _handle_char(char c);
 static int _handle_args(int argc, char **const argv);
 
@@ -70,13 +115,22 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    if(opts.flags & OPT_FLAG_IDENTIFY) {
+        if(_identify()) {
+            close(opts.fd_in);
+            close(opts.fd_out);
+            return -1;
+        }
+        close(opts.fd_in);
+        close(opts.fd_out);
+        return 0;
+    }
+
     if(!(opts.flags & OPT_FLAG_NOSETUP)) {
-        iwii_set_font(opts.fd_out, opts.font);
-        iwii_set_lpi(opts.fd_out, opts.lpi);
-        iwii_set_quality(opts.fd_out, opts.quality);
-        iwii_set_tabs(opts.fd_out, opts.tab, opts.font);
-        if(opts.flags & OPT_FLAG_ENABLECOLOR) {
-            iwii_set_color(opts.fd_out, opts.color);
+        if(_apply_config()) {
+            close(opts.fd_in);
+            close(opts.fd_out);
+            return -1;
         }
     }
 
@@ -165,7 +219,84 @@ static int _setup_serial(void) {
     return 0;
 }
 
-static void _ansi_reset() {
+static int _identify(void) {
+    write(opts.fd_out, "\033?", 2);
+    
+    char resp[8];
+    int i = 0;
+    memset(resp, 0, sizeof(resp));
+
+    while (read(opts.fd_out, &resp[i], sizeof(resp)-1)) {
+        if(i >= 8) {
+            return -1;
+        }
+        if(resp[i] == '\r') {
+            resp[i] = 0;
+            printf("Identity response: %s\n", resp);
+            break;
+        }
+        i++;
+    }
+
+    return 0;
+}
+
+static int _apply_config(void) {
+    if(opts.cfgflags & OPT_SETFLAG_FONT) {
+        iwii_set_font(opts.fd_out, opts.font);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_QUALITY) {
+        iwii_set_quality(opts.fd_out, opts.quality);
+    }
+    if((opts.flags & OPT_FLAG_ENABLECOLOR) &&
+       (opts.cfgflags & OPT_SETFLAG_COLOR)) {
+        iwii_set_color(opts.fd_out, opts.color);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_TAB) {
+        iwii_set_tabs(opts.fd_out, opts.tab, opts.font);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_LINESPERINCH) {
+        iwii_set_lpi(opts.fd_out, opts.lpi);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_LINESPACING) {
+        iwii_set_line_spacing(opts.fd_out, opts.linespacing);
+    }
+    
+    if(opts.cfgflags & OPT_SETFLAG_LEFTMARGIN) {
+        iwii_set_left_margin(opts.fd_out, opts.leftmargin);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_PAGELEN) {
+        iwii_set_pagelen(opts.fd_out, opts.pagelen);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_PROPSPACING) {
+        iwii_set_prop_spacing(opts.fd_out, opts.propspacing);
+    }
+    
+    if(opts.cfgflags & OPT_SETFLAG_SKIPPERFORATION) {
+        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_SKIPPERFORATION) ? "\033D\x00\x04"
+                                                                         : "\033Z\x00\x04", 4);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_UNIDIRECTIONAL) {
+        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_UNIDIRECTIONAL) ? "\033>"
+                                                                        : "\033<", 2);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_AUTOLINEFEED) {
+        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_AUTOLINEFEED) ? "\033D \x00"
+                                                                      : "\033Z \x00", 4);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_SLASHEDZERO) {
+        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_SLASHEDZERO) ? "\033D\x00\x01"
+                                                                     : "\033Z\x00\x01", 4);
+    }
+    if(opts.cfgflags & OPT_SETFLAG_DOUBLEWIDTH) {
+        write(opts.fd_out, (opts.setflags & OPT_CFGFLAG_DOUBLEWIDTH) ? "\x0e"
+                                                                     : "\x0f", 1);
+    }
+
+    return 0;
+}
+
+static void _ansi_reset(void) {
     opts.flags &= ~(OPT_FLAG_STRIKETHROUGH | OPT_FLAG_CONCEAL);
     /* No bold, underline, sub/superscript, or italic */
     const char *reset = "\033\"\033Y\033z\033W";
@@ -314,83 +445,146 @@ ansi_error:
 static void _help(void) {
     puts("ansi2iwii: Convert ANSI escape codes to Apple ImageWriter II escape codes\n");
 
-    puts("Options:\n"
-         "  -h, --help             Display this help message\n"
-         "  -v, --verbose[=LEVEL]  Increase verbosity, can be supplied multiple times, or desired\n"
-         "                         verbosity can be directly supplied\n"
-         "  -i, --input=FILE       Read input from FILE, use `-` for stdin (default)\n"
-         "  -o, --output=FILE      Write output to FILE, use `-` for stdout (default)\n"
-         "  -b, --baud=RATE        Set baud rate to use when output is set to the printer's serial\n"
-         "                         port. Values 300, 1200, 2400, and 9600 (default) are accepted\n"
-         "  -F, --flow=MODE        Set flow control mode when using serial as output\n"
-         "                           0: None\n"
-         "                           1: XON/XOFF (default)\n"
-         "                           2: RTS/CTS\n"
-         "  -N, --no-setup         Do not configure printer via escape codes on startup\n"
-         "  -c, --color[=COLOR]    Enable support for color, set default color if supplied.\n"
-         "                           0: Black (default)\n"
-         "                           1: Red\n"
-         "                           2: Green\n"
-         "                           3: Yellow\n"
-         "                           4: Blue\n"
-         "                           5: Purple\n"
-         "                           6: Orange\n"
-         "  -f, --font=FONT        Set default font to use:\n"
-         "                           0: Extended\n"
-         "                           1: Pica\n"
-         "                           2: Elite (default)\n"
-         "                           3: Semicondensed\n"
-         "                           4: Condensed\n"
-         "                           5: Ultracondensed\n"
-         "                           6: Pica proportional\n"
-         "                           7: Elite proportional\n"
-         "                           8: Custom\n"
-         "  -q, --quality=QUAL     Set print quality to use:\n"
-         "                           0: Draft (default)\n"
-         "                           1: Standard\n"
-         "                           2: Near Letter Quality\n"
-         "  -l, --lpi=LPI          Set number of lines per inch, 6 or 8 (default)\n"
-         "  -t, --tab=WIDTH        Set tab width, in characters (default is 8)\n"
-         "                         NOTE: Tab positions are relative to the starting font.\n"
+    puts("Basic Options:\n"
+         "  -i, --input=FILE          Read input from FILE, use `-` for stdin (default)\n"
+         "  -o, --output=FILE         Write output to FILE, use `-` for stdout (default)\n"
+         "  -b, --baud=RATE           Set baud rate to use when output is set to the printer's serial\n"
+         "                            port. Values 300, 1200, 2400, and 9600 (default) are accepted\n"
+         "  -F, --flow=MODE           Set flow control mode when using serial as output\n"
+         "                              0: None\n"
+         "                              1: XON/XOFF (default)\n"
+         "                              2: RTS/CTS\n"
+         "  -N, --no-setup            Do not configure printer via escape codes on startup\n"
+         "\n"
+         "Common Format Options:\n"
+         "  -f, --font=FONT           Set default font to use:\n"
+         "                              0: Extended\n"
+         "                              1: Pica\n"
+         "                              2: Elite (default)\n"
+         "                              3: Semicondensed\n"
+         "                              4: Condensed\n"
+         "                              5: Ultracondensed\n"
+         "                              6: Pica proportional\n"
+         "                              7: Elite proportional\n"
+         "                              8: Custom\n"
+         "  -q, --quality=QUAL        Set print quality to use:\n"
+         "                              0: Draft (default)\n"
+         "                              1: Standard\n"
+         "                              2: Near Letter Quality\n"
+         "  -c, --color[=COLOR]       Enable support for color, set default color if supplied.\n"
+         "                              0: Black (default)\n"
+         "                              1: Red\n"
+         "                              2: Green\n"
+         "                              3: Yellow\n"
+         "                              4: Blue\n"
+         "                              5: Purple\n"
+         "                              6: Orange\n"
+         "  -t, --tab=WIDTH           Set tab width, in characters (default is 8)\n"
+         "                            NOTE: Tab positions are relative to the starting font\n"
+         "  -l, --lpi=LPI             Set number of lines per inch, 6 (default) or 8\n"
+         "  -L, --line-spacing=SPACE  Set spacing between lines, in 144ths of an inch (1-99)\n"
+         "\n"
+         "Page Settings:\n"
+         "  -M, --left-margin=MARGIN     Set left margin in characters\n"
+         "  -p, --pagelen=LENGTH         Set page length in 144ths of an inch\n"
+         "  -P, --skip-perforation[=EN]  Enable/disable continuous-form perforation skip\n"
+         "\n"
+         "Misc. Print Settings:\n"
+         "  -U, --unidirectional[=EN]    Enable/disable unidirectional printing\n"
+         "  -A, --auto-linefeed[=EN]     Enable/disable automatic linefeed at end of line\n"
+         "  -Z, --slashed-zero[=EN]      Enable/disable slashed-zeros\n"
+         "  -D, --double-width[=EN]      Enable/disable double-width\n"
+         "  -S, --prop-spacing=DOTS      Set proportional dot spacing (0-9)\n"
+         "\n"
+         "Miscellaneous:\n"
+         "  -I, --identify            Retrieve printer identification and exit\n"
+         "                            NOTE: Must be provided prior to specifying output\n"
+         "  -h, --help                Display this help message\n"
+         "  -v, --verbose[=LEVEL]     Increase verbosity, can be supplied multiple times, or desired\n"
+         "                            verbosity can be directly supplied\n"
         );
 
     exit(0);
 }
 
 static const struct option prog_options[] = {
-    { "help",     no_argument,       NULL, 'h' },
-    { "verbose",  optional_argument, NULL, 'v' },
-    { "input",    required_argument, NULL, 'i' },
-    { "output",   required_argument, NULL, 'o' },
-    { "baud",     required_argument, NULL, 'b' },
-    { "flow",     required_argument, NULL, 'F' },
-    { "no-setup", no_argument,       NULL, 'N' },
-    { "color",    optional_argument, NULL, 'c' },
-    { "font",     required_argument, NULL, 'f' },
-    { "quality",  required_argument, NULL, 'q' },
-    { "lpi",      required_argument, NULL, 'l' },
-    { "tab",      required_argument, NULL, 't' },
+    /* Basic Options */
+    { "input",            required_argument, NULL, 'i' },
+    { "output",           required_argument, NULL, 'o' },
+    { "baud",             required_argument, NULL, 'b' },
+    { "flow",             required_argument, NULL, 'F' },
+    { "no-setup",         no_argument,       NULL, 'N' },
+    /* Common Format Options */
+    { "font",             required_argument, NULL, 'f' },
+    { "quality",          required_argument, NULL, 'q' },
+    { "color",            optional_argument, NULL, 'c' },
+    { "tab",              required_argument, NULL, 't' },
+    { "lpi",              required_argument, NULL, 'l' },
+    { "line-spacing",     required_argument, NULL, 'L' },
+    /* Page Settings */
+    { "left-margin",      required_argument, NULL, 'M' },
+    { "pagelen",          required_argument, NULL, 'p' },
+    { "skip-perforation", optional_argument, NULL, 'P' },
+    /* Misc. Print Settings */
+    { "unidirectional",   optional_argument, NULL, 'U' },
+    { "auto-linefeed",    optional_argument, NULL, 'A' },
+    { "slashed-zero",     optional_argument, NULL, 'Z' },
+    { "double-width",     optional_argument, NULL, 'D' },
+    { "prop-spacing",     required_argument, NULL, 'S' },
+    /* Miscellaneous */
+    { "identify",         no_argument,       NULL, 'I' },
+    { "help",             no_argument,       NULL, 'h' },
+    { "verbose",          optional_argument, NULL, 'v' },
     { NULL, 0, NULL, 0 }
 };
 
+static int __get_number(const char *arg, unsigned min, unsigned max, const char *msg) {
+    if(!isdigit(arg[0])) {
+        fprintf(stderr, "%s must be a number between %u and %u!\r\n", msg, min, max);
+        return -1;
+    }
+
+    unsigned val = strtoul(optarg, NULL, 10);
+    if((val < min) || (val > max)) {
+        fprintf(stderr, "%s must be a number between %u and %u!\r\n", msg, min, max);
+        return -1;
+    }
+    
+    return val;
+}
+
+#define _get_number(min, max, msg, var) { \
+    int val = __get_number(optarg, min, max, msg); \
+    if(val < 0) { \
+        return -1; \
+    } \
+    var = val; \
+}
+
+#define _get_optbool(var, flag) { \
+    if(optarg) { \
+        if(!strcasecmp(optarg, "Y")) { \
+            (var) |= (flag); \
+        } else if(!strcasecmp(optarg, "N")) { \
+            (var) &= ~(flag); \
+        } else { \
+            fprintf(stderr, "Optional boolean arguments must be Y/y or N/n\n"); \
+            return -1; \
+        } \
+    } else { \
+        (var) |= (flag); \
+    } \
+}
+
+
 static int _handle_args(int argc, char **const argv) {
     int c;
-    while ((c = getopt_long(argc, argv, "hv::i:o:b:F:Nc::f:q:l:t:", prog_options, NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, "i:o:b:F:N"
+                                        "f:q:c::t:l:L:"
+                                        "M:p:P::"
+                                        "U::A::Z::D::S:"
+                                        "Ihv::", prog_options, NULL)) >= 0) {
         switch(c) {
-            case 'h':
-                _help();
-                break;
-            case 'v':
-                if(optarg) {
-                    if(!isdigit(optarg[0])) {
-                        fprintf(stderr, "Verbosity level must be a number >= 0!\n");
-                        return -1;
-                    }
-                    opts.verbose = strtoul(optarg, NULL, 10);
-                } else {
-                    opts.verbose++;
-                }
-                break;
             case 'i':
                 if(!strcmp(optarg, "-")) {
                     opts.fd_in = STDIN_FILENO;
@@ -406,7 +600,12 @@ static int _handle_args(int argc, char **const argv) {
                 if(!strcmp(optarg, "-")) {
                     opts.fd_out = STDOUT_FILENO;
                 } else {
-                    opts.fd_out = open(optarg, O_WRONLY | O_NOCTTY);
+                    if(opts.flags & OPT_FLAG_IDENTIFY) {
+                        /* @todo Only open file _after_ all options are processed */
+                        opts.fd_out = open(optarg, O_RDWR | O_NOCTTY);
+                    } else {
+                        opts.fd_out = open(optarg, O_WRONLY | O_NOCTTY);
+                    }
                     if(opts.fd_out < 0) {
                         fprintf(stderr, "Could not open output `%s`: %s\n", optarg, strerror(errno));
                         return -1;
@@ -433,54 +632,26 @@ static int _handle_args(int argc, char **const argv) {
                 }
             } break;
             case 'F':
-                if(!isdigit(optarg[0])) {
-                    fprintf(stderr, "Flow control selection must be a number from 0 to 2!\n");
-                    return -1;
-                }
-                opts.flow = strtoul(optarg, NULL, 10);
-                if(opts.font > 2) {
-                    fprintf(stderr, "Flow control selection must be a number from 0 to 2!\n");
-                    return -1;
-                }
+                _get_number(0, 2, "Flow control selection", opts.flow);
                 break;
             case 'N':
                 opts.flags |= OPT_FLAG_NOSETUP;
                 break;
+
+            case 'f':
+                _get_number(0, 8, "Font selection", opts.font);
+                break;
+            case 'q':
+                _get_number(0, 2, "Quality selection", opts.quality);
+                break;
             case 'c':
                 opts.flags |= OPT_FLAG_ENABLECOLOR;
                 if(optarg) {
-                    if(!isdigit(optarg[0])) {
-                        fprintf(stderr, "Color selection must be a number from 0 to 6!\n");
-                        return -1;
-                    }
-                    opts.color = strtoul(optarg, NULL, 10);
-                    if(opts.font > 6) {
-                        fprintf(stderr, "Color selection must be a number from 0 to 6!\n");
-                        return -1;
-                    }
+                    _get_number(0, 6, "Color selection", opts.color);
                 }
                 break;
-            case 'f':
-                if(!isdigit(optarg[0])) {
-                    fprintf(stderr, "Font selection must be a number from 0 to 8!\n");
-                    return -1;
-                }
-                opts.font = strtoul(optarg, NULL, 10);
-                if(opts.font > 8) {
-                    fprintf(stderr, "Font selection must be a number from 0 to 8!\n");
-                    return -1;
-                }
-                break;
-            case 'q':
-                if(!isdigit(optarg[0])) {
-                    fprintf(stderr, "Quality selection must be a number from 0 to 2!\n");
-                    return -1;
-                }
-                opts.quality = strtoul(optarg, NULL, 10);
-                if(opts.quality > 2) {
-                    fprintf(stderr, "Quality selection must be a number from 0 to 2!\n");
-                    return -1;
-                }
+            case 't':
+                _get_number(2, 32, "Tab spacing", opts.tab);
                 break;
             case 'l':
                 if(!isdigit(optarg[0])) {
@@ -493,15 +664,52 @@ static int _handle_args(int argc, char **const argv) {
                     return -1;
                 }
                 break;
-            case 't':
-                if(!isdigit(optarg[0])) {
-                    fprintf(stderr, "Tab spacing must be a number from 2 to 32!\n");
-                    return -1;
-                }
-                opts.tab = strtoul(optarg, NULL, 10);
-                if((opts.tab < 2) || (opts.tab > 32)) {
-                    fprintf(stderr, "Tab spacing must be a number from 2 to 32!\n");
-                    return -1;
+            case 'L':
+                _get_number(1, 99, "Line spacing", opts.linespacing);
+                break;
+            
+            case 'M':
+                /* The maximum technically depends on the selected font */
+                _get_number(0, 136, "Left margin", opts.leftmargin);
+                break;
+            case 'p':
+                _get_number(1, 9999, "Page length", opts.pagelen);
+                break;
+            case 'P':
+                _get_optbool(opts.cfgflags, OPT_CFGFLAG_SKIPPERFORATION);
+                break;
+            
+            case 'U':
+                _get_optbool(opts.cfgflags, OPT_CFGFLAG_UNIDIRECTIONAL);
+                break;
+            case 'A':
+                _get_optbool(opts.cfgflags, OPT_CFGFLAG_AUTOLINEFEED);
+                break;
+            case 'Z':
+                _get_optbool(opts.cfgflags, OPT_CFGFLAG_SLASHEDZERO);
+                break;
+            case 'D':
+                _get_optbool(opts.cfgflags, OPT_CFGFLAG_DOUBLEWIDTH);
+                break;
+            case 'S':
+                _get_number(0, 9, "Proportional spacing", opts.propspacing);
+                break;
+
+            case 'I':
+                opts.flags |= OPT_FLAG_IDENTIFY;
+                break;
+            case 'h':
+                _help();
+                break;
+            case 'v':
+                if(optarg) {
+                    if(!isdigit(optarg[0])) {
+                        fprintf(stderr, "Verbosity level must be a number >= 0!\n");
+                        return -1;
+                    }
+                    opts.verbose = strtoul(optarg, NULL, 10);
+                } else {
+                    opts.verbose++;
                 }
                 break;
 
@@ -515,6 +723,4 @@ static int _handle_args(int argc, char **const argv) {
 
     return 0;
 }
-
-
 
