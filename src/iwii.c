@@ -57,6 +57,16 @@ static const char iwii_color[] = {
 };
 
 int iwii_set_color(int fd, unsigned color) {
+    if(color >= IWII_COLOR_MAX) {
+        return -1;
+    }
+
+    dprintf(fd, "\033K%u", color);
+
+    return 0;
+}
+
+int iwii_set_ansicolor(int fd, unsigned color) {
     if(color >= ANSI_COLOR_MAX) {
         return -1;
     }

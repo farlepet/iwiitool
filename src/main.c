@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "iwii.h"
+#include "iwii_gfx.h"
 #include "ansi_escape.h"
 
 typedef struct opts_struct {
@@ -250,7 +251,7 @@ static int _apply_config(void) {
     }
     if((opts.flags & OPT_FLAG_ENABLECOLOR) &&
        (opts.setflags & OPT_SETFLAG_COLOR)) {
-        iwii_set_color(opts.fd_out, opts.color);
+        iwii_set_ansicolor(opts.fd_out, opts.color);
     }
     if(opts.setflags & OPT_SETFLAG_TAB) {
         iwii_set_tabs(opts.fd_out, opts.tab, opts.font);
@@ -305,7 +306,7 @@ static void _ansi_reset(void) {
     iwii_set_font(opts.fd_out, opts.font);
 
     if(opts.flags & OPT_FLAG_ENABLECOLOR) {
-        iwii_set_color(opts.fd_out, opts.color);
+        iwii_set_ansicolor(opts.fd_out, opts.color);
     }
 }
 
@@ -356,7 +357,7 @@ static int _handle_char(char c) {
                 } else if((sgr >= ANSI_SGR_FOREGROUND_START) &&
                           (sgr <= ANSI_SGR_FOREGROUND_END)) {
                     if(opts.flags & OPT_FLAG_ENABLECOLOR) {
-                        iwii_set_color(opts.fd_out, sgr - ANSI_SGR_FOREGROUND_START);
+                        iwii_set_ansicolor(opts.fd_out, sgr - ANSI_SGR_FOREGROUND_START);
                     }
                 } else {
                     switch(sgr) {

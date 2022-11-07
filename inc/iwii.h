@@ -21,13 +21,33 @@ typedef enum iwii_quality_enum {
     IWII_QUAL_MAX
 } iwii_quality_e;
 
+typedef enum iwii_color_enum {
+    IWII_COLOR_BLACK  = 0,
+    IWII_COLOR_YELLOW = 1,
+    IWII_COLOR_RED    = 2,
+    IWII_COLOR_BLUE   = 3,
+    IWII_COLOR_ORANGE = 4, /* Yellow + Red */
+    IWII_COLOR_GREEN  = 5, /* Yellow + Blue */
+    IWII_COLOR_PURPLE = 6, /* Red + Blue */
+    IWII_COLOR_MAX    = 7
+} iwii_color_e;
 
 
+
+/**
+ * @brief Set current font
+ *
+ * @param fd File descriptor to which to write escape codes
+ * @param font Font to use, @see iwii_font_e
+ * @return 0 on success, else < 0
+ */
 int iwii_set_font(int fd, unsigned font);
 
 int iwii_set_quality(int fd, unsigned quality);
 
 int iwii_set_color(int fd, unsigned color);
+
+int iwii_set_ansicolor(int fd, unsigned color);
 
 int iwii_set_tabs(int fd, unsigned tab_size, unsigned font);
 
