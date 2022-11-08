@@ -16,7 +16,7 @@ endif
 
 .PHONY: all, clean
 
-all: $(EXEC) ansi2iwii
+all: $(EXEC) ansi2iwii iwiigfx
 
 $(EXEC): $(OBJ)
 	@echo -e "\033[33m  \033[1mLD\033[21m    \033[34m$(EXEC)\033[0m"
@@ -25,9 +25,12 @@ $(EXEC): $(OBJ)
 ansi2iwii: $(EXEC)
 	@ln -s $< $@
 
+iwiigfx: $(EXEC)
+	@ln -s $< $@
+
 clean:
 	@echo -e "\033[33m  \033[1mCleaning $(EXEC)\033[0m"
-	@rm -f $(OBJ) $(EXEC) ansi2iwii
+	@rm -f $(OBJ) $(EXEC) ansi2iwii iwiigfx
 
 -include $(DEPS)
 
