@@ -135,6 +135,14 @@ int main(int argc, char **argv) {
         }
     }
 
+#if 0
+    if(iwii_gfx_test(opts.fd_out)) {
+        return -1;
+    } else {
+        return 0;
+    }
+#endif
+
     char *buff = malloc(BUFF_SZ);
     if(buff == NULL) {
         fprintf(stderr, "Could not allocate space for input buffer: %s\n", strerror(errno));

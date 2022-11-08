@@ -29,6 +29,8 @@ int iwii_gfx_init(int fd, unsigned h_dpi, unsigned v_dpi);
  */
 int iwii_gfx_print_image(int fd, const uint8_t *data, unsigned width, unsigned height);
 
+int iwii_gfx_print_bmp(int fd, int bmp_fd);
+
 /**
  * @brief Prints small test image (8x8 color pattern)
  *

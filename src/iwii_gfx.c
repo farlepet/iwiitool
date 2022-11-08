@@ -1,8 +1,10 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "bmp.h"
 #include "iwii.h"
 #include "iwii_gfx.h"
 
@@ -214,12 +216,105 @@ int iwii_gfx_print_image(int fd, const uint8_t *data, unsigned width, unsigned h
     return 0;
 }
 
+const uint32_t _rgb_colors[IWII_COLOR_MAX+1] = {
+    [IWII_COLOR_BLACK]  = 0x000000,
+    [IWII_COLOR_YELLOW] = 0xd6d426,
+    [IWII_COLOR_RED]    = 0xb80000,
+    [IWII_COLOR_BLUE]   = 0x005bff,
+    [IWII_COLOR_ORANGE] = 0xff5d00,
+    [IWII_COLOR_GREEN]  = 0x0d8900,
+    [IWII_COLOR_PURPLE] = 0x88004c,
+    [IWII_COLOR_MAX]    = 0xffffff /* White */
+};
+
+int iwii_gfx_print_bmp(int fd, int bmp_fd) {
+    bmp_hand_t *bmp = malloc(sizeof(*bmp));
+    if(bmp == NULL) {
+        return -1;
+    }
+    if(bmp_load_file(bmp, bmp_fd)) {
+        free(bmp);
+        return -1;
+    }
+    /* @note Even if the file is only using 6 colors, it may say it is using 16, or it
+     * relies upon the bits-per-pixel value instead. ImageMagick for instance does this,
+     * while GIMP does not. So we allow up to 16, and only fail if any of them are
+     * unexpected colors. */
+    if(bmp->dib_head.n_colors > 16) {
+        fprintf(stderr, "GFX: Too many colors: %u\n", bmp->dib_head.n_colors);
+        bmp_destroy(bmp);
+        free(bmp);
+        return -1;
+    }
+
+    uint8_t pal_map[16];
+    for(unsigned i = 0; i < bmp->dib_head.n_colors; i++) {
+        unsigned j = 0;
+        for(; j < IWII_COLOR_MAX + 1; j++) {
+            if(*(uint32_t *)&bmp->palette[i] == _rgb_colors[j]) {
+                pal_map[i] = j;
+                break;
+            }
+        }
+        if(j == (IWII_COLOR_MAX + 1)) {    
+            fprintf(stderr, "GFX: Unsupported palette entry: %08x (r: %u, g: %u, b: %u)\n",
+                    *(uint32_t *)&bmp->palette[i],
+                    bmp->palette[i].red, bmp->palette[i].green, bmp->palette[i].blue);
+            bmp_destroy(bmp);
+            free(bmp);
+            return -1;
+        }
+    }
+    
+    unsigned width  = bmp->dib_head.width;
+    unsigned height = bmp->dib_head.height;
+
+    uint8_t *row_data = malloc(8 * width);
+    if(row_data == NULL) {
+        free(bmp);
+        return -1;
+    }
+
+    for(unsigned i = 0; i < height; i += 8) {
+        unsigned rows = 8;
+        if((height - i) < rows) {
+            rows = height - i;
+        }
+
+        unsigned idx = 0;
+        for(unsigned y = i; y < i + rows; y++) {
+            for(unsigned x = 0; x < width; x++) {
+                /* Assuming success */
+                int col = bmp_get_pixel(bmp, x, y);
+                if(col < 0 || col > 7) {
+                    fprintf(stderr, "GFX: Bad pixel: (%u, %u) -> %d\n", x, y, col);
+                    free(row_data);
+                    bmp_destroy(bmp);
+                    free(bmp);
+
+                    return 0;
+                }
+                row_data[idx++] = pal_map[bmp_get_pixel(bmp, x, y)];
+            }
+        }
+
+        iwii_gfx_print_line_color(fd, row_data, width, rows);
+        write(fd, "\r\n", 2);
+    }
+
+    free(row_data);
+    bmp_destroy(bmp);
+    free(bmp);
+
+    return 0;
+}
 
 int iwii_gfx_test(int fd) {
     if(iwii_gfx_init(fd, 72, 72)) {
         return -1;
     }
 
+#if 0
     const uint8_t img[] = { 0, 0, 1, 1, 2, 2, 3, 3,
                             0, 0, 1, 1, 2, 2, 3, 3,
                             1, 1, 2, 2, 3, 3, 4, 4,
@@ -232,6 +327,17 @@ int iwii_gfx_test(int fd) {
     if(iwii_gfx_print_image(fd, img, 8, 8)) {
         return -1;
     }
+#else
+    int fd_bmp = open("images/test.bmp", O_RDONLY);
+    if(fd_bmp < 0) {
+        return -1;
+    }
+
+    if(iwii_gfx_print_bmp(fd, fd_bmp)) {
+        return -1;
+    }
+#endif
 
     return 0;
 }
+
