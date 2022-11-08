@@ -1,9 +1,80 @@
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include "ansi_escape.h"
 #include "iwii.h"
+
+int iwii_serial_init(int fd, unsigned flow, unsigned baud) {
+    speed_t speed;
+    if(baud == 300) {
+        speed = B300;
+    } else if(baud == 1200) {
+        speed = B1200;
+    } else if(baud == 2400) {
+        speed = B2400;
+    } else if(baud == 9600) {
+        speed = B9600;
+    } else {
+        return -1;
+    }
+
+    struct termios tty;
+
+    if(tcgetattr(fd, &tty)) {
+        if(errno == ENOTTY) {
+            /* We are writing to a file */
+            return 0;
+        }
+        fprintf(stderr, "tcgetattr: %s\n", strerror(errno));
+        return -1;
+    }
+
+    /* No parity */
+    tty.c_cflag &= ~PARENB;
+    /* 1 stop bit */
+    tty.c_cflag &= ~CSTOPB;
+    /* 8-bit */
+    tty.c_cflag |= CS8;
+
+    switch(flow) {
+        case IWII_FLOW_NONE:
+            tty.c_iflag &= ~(IXON | IXOFF);
+            tty.c_cflag &= ~CRTSCTS;
+            break;
+        case IWII_FLOW_XONXOFF:
+            tty.c_iflag |=  IXON | IXOFF;
+            tty.c_cflag &= ~CRTSCTS;
+            break;
+        case IWII_FLOW_RTSCTS:
+            tty.c_iflag &= ~(IXON | IXOFF);
+            tty.c_cflag |=  CRTSCTS;
+            break;
+        default:
+            return -1;
+
+    }
+
+    /* Disable canonical mode */
+    tty.c_lflag &= ~ICANON;
+
+    /* Disable unwanted character conversions */
+    tty.c_oflag &= ~OPOST;
+    tty.c_oflag &= ~ONLCR;
+
+    cfsetispeed(&tty, speed);
+    cfsetospeed(&tty, speed);
+
+    if(tcsetattr(fd, TCSANOW, &tty)) {
+        fprintf(stderr, "tcsetattr: %s\n", strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
 
 static const char iwii_font[] = {
     [IWII_FONT_EXTENDED]           = 'n',

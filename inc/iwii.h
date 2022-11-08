@@ -32,7 +32,13 @@ typedef enum iwii_color_enum {
     IWII_COLOR_MAX    = 7
 } iwii_color_e;
 
+typedef enum iwii_flow_enum {
+    IWII_FLOW_NONE = 0,
+    IWII_FLOW_XONXOFF,
+    IWII_FLOW_RTSCTS
+} iwii_flow_e;
 
+int iwii_serial_init(int fd, iwii_flow_e flow, unsigned baud);
 
 /**
  * @brief Set current font

@@ -20,11 +20,8 @@ typedef struct opts_struct {
 /* I/O Config */
     int      fd_in;     /**< Input file descriptor */
     int      fd_out;    /**< Output file descriptor */
+    unsigned baud;      /**< Baud rate to use */
     uint8_t  flow;      /**< Flow control method to use */
-#define OPT_FLOW_NONE          (0)
-#define OPT_FLOW_XONXOFF       (1)
-#define OPT_FLOW_RTSCTS        (2)
-    speed_t  baud;      /**< Baud rate to use */
 
 /* Configuration */
     uint8_t  verbose;   /**< Program verbosity level */
@@ -75,8 +72,8 @@ static opts_t opts = {
 /* I/O Config */
     .fd_in     = STDIN_FILENO,
     .fd_out    = STDOUT_FILENO,
-    .flow      = OPT_FLOW_XONXOFF,
-    .baud      = B9600,
+    .flow      = IWII_FLOW_XONXOFF,
+    .baud      = 9600,
 
 /* Config */
     .verbose     = 0,
@@ -98,7 +95,6 @@ static opts_t opts = {
     .font_save = 0xff
 };
 
-static int _setup_serial(void);
 static int _identify(void);
 static int _apply_config(void);
 static int _handle_char(char c);
@@ -111,7 +107,7 @@ int ansi2iwii(int argc, char **argv) {
         return -1;
     }
 
-    if(_setup_serial()) {
+    if(iwii_serial_init(opts.fd_out, opts.flow, opts.baud)) {
         close(opts.fd_in);
         close(opts.fd_out);
         return -1;
@@ -173,54 +169,6 @@ main_fail:
     return -1;
 }
 
-
-static int _setup_serial(void) {
-    struct termios tty;
-
-    if(tcgetattr(opts.fd_out, &tty)) {
-        if(errno == ENOTTY) {
-            /* We are writing to a file */
-            return 0;
-        }
-        fprintf(stderr, "tcgetattr: %s\n", strerror(errno));
-        return -1;
-    }
-
-    /* No parity */
-    tty.c_cflag &= ~PARENB;
-    /* 1 stop bit */
-    tty.c_cflag &= ~CSTOPB;
-    /* 8-bit */
-    tty.c_cflag |= CS8;
-
-    if(opts.flow == OPT_FLOW_XONXOFF) {
-        tty.c_iflag |=  IXON | IXOFF;
-        tty.c_cflag &= ~CRTSCTS;
-    } else if(opts.flow == OPT_FLOW_RTSCTS) {
-        tty.c_iflag &= ~(IXON | IXOFF);
-        tty.c_cflag |=  CRTSCTS;
-    } else {
-        tty.c_iflag &= ~(IXON | IXOFF);
-        tty.c_cflag &= ~CRTSCTS;
-    }
-
-    /* Disable canonical mode */
-    tty.c_lflag &= ~ICANON;
-
-    /* Disable unwanted character conversions */
-    tty.c_oflag &= ~OPOST;
-    tty.c_oflag &= ~ONLCR;
-
-    cfsetispeed(&tty, opts.baud);
-    cfsetospeed(&tty, opts.baud);
-
-    if(tcsetattr(opts.fd_out, TCSANOW, &tty)) {
-        fprintf(stderr, "tcsetattr: %s\n", strerror(errno));
-        return -1;
-    }
-
-    return 0;
-}
 
 static int _identify(void) {
     write(opts.fd_out, "\033?", 2);
@@ -621,17 +569,16 @@ static int _handle_args(int argc, char **const argv) {
                     return -1;
                 }
                 unsigned baud = strtoul(optarg, NULL, 10);
-                if(baud == 300) {
-                    opts.baud = B300;
-                } else if(baud == 1200) {
-                    opts.baud = B1200;
-                } else if(baud == 2400) {
-                    opts.baud = B2400;
-                } else if(baud == 9600) {
-                    opts.baud = B9600;
-                } else {
-                    fprintf(stderr, "Baud rate selection must 300, 1200, 2400, or 9600!\n");
-                    return -1;
+                switch(baud) {
+                    case 300:
+                    case 1200:
+                    case 2400:
+                    case 9600:
+                        opts.baud = baud;
+                        break;
+                    default:
+                        fprintf(stderr, "Baud rate selection must 300, 1200, 2400, or 9600!\n");
+                        return -1;
                 }
             } break;
             case 'F':
