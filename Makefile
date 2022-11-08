@@ -5,7 +5,7 @@ INC		= $(MAINDIR)/inc
 CSRC	= $(wildcard $(SRC)/*.c)
 OBJ		= $(patsubst %.c,%.o,$(CSRC))
 DEPS    = $(patsubst %.c,%.d,$(CSRC))
-EXEC	= ansi2iwii
+EXEC	= iwiitool
 
 CFLAGS	    = -I$(INC) -Wall -Wextra -Werror -O2 -g
 LDFLAGS		=
@@ -16,15 +16,18 @@ endif
 
 .PHONY: all, clean
 
-all: $(EXEC)
+all: $(EXEC) ansi2iwii
 
 $(EXEC): $(OBJ)
 	@echo -e "\033[33m  \033[1mLD\033[21m    \033[34m$(EXEC)\033[0m"
 	@$(CC) $(OBJ) $(LDFLAGS) -o $(EXEC)
 
+ansi2iwii: $(EXEC)
+	@ln -s $< $@
+
 clean:
 	@echo -e "\033[33m  \033[1mCleaning $(EXEC)\033[0m"
-	@rm -f $(OBJ) $(EXEC)
+	@rm -f $(OBJ) $(EXEC) ansi2iwii
 
 -include $(DEPS)
 
