@@ -164,9 +164,73 @@ static int iwii_gfx_print_line_color(int fd, const uint8_t *data, unsigned width
         }
     }
 
+    free(line);
+
     return 0;
 }
 
+/* @todo Merge with above */
+static int iwii_gfx_print_line_color_144dpi(int fd, const uint8_t *data, unsigned width, unsigned rows) {
+    uint8_t *line = malloc(width);
+    if(line == NULL) {
+        return -1;
+    }
+
+    for(uint8_t i = 0; i < 8; i++) {
+        /* At most a 4-pass process. Starting with yellow following recommendation
+         * from manual to prevent staining yellow portion of ribbon.1
+         * 0: Yellow
+         * 1: Red
+         * 2: Blue 
+         * 3: Black*/
+        int start = -1;
+        int end   =  0;
+
+        for(unsigned j = 0; j < width; j++) {
+            uint8_t col = 0;
+            int     k   = rows - ((i & 1) ? 1 : 2);
+            for(; k >= 0; k -= 2) {
+                col = (col << 1) | (_test_color(i / 2, data[(k * width) + j]) ? 1 : 0);
+            }
+            if(col) {
+                if(start < 0) {
+                    start = j;
+                }
+                end = j;
+            }
+            line[j] = col;
+        }
+
+        /* Only write if color is used in line */
+        if(start >= 0) {
+            iwii_set_color(fd, ((i / 2) == 0) ? IWII_COLOR_YELLOW :
+                               ((i / 2) == 1) ? IWII_COLOR_RED    :
+                               ((i / 2) == 2) ? IWII_COLOR_BLUE   : IWII_COLOR_BLACK);
+
+            dprintf(fd, "\r\033F%04d", _gfx_state.cfg.h_pos + start);
+            
+            iwii_gfx_print_line(fd, &line[start], (end + 1) - start);
+        }
+
+        if(i & 1) {
+            /* Move up one dot */
+            iwii_set_line_spacing(fd, 1);
+            iwii_move_up_lines(fd, 1);
+            iwii_set_line_spacing(fd, 16);
+        } else {
+            /* Move down one dot */
+            iwii_set_line_spacing(fd, 1);
+            write(fd, "\n", 1);
+            iwii_set_line_spacing(fd, 16);
+        }
+    }
+
+    iwii_set_line_spacing(fd, 16);
+
+    free(line);
+
+    return 0;
+}
 
 
 int iwii_gfx_print_image(int fd, const uint8_t *data, unsigned width, unsigned height) {
@@ -233,21 +297,23 @@ int iwii_gfx_print_bmp(int fd, int bmp_fd) {
         }
     }
     
-    unsigned width  = bmp->dib_head.width;
-    unsigned height = bmp->dib_head.height;
+    unsigned width         = bmp->dib_head.width;
+    unsigned height        = bmp->dib_head.height;
+    unsigned rows_per_line = (_gfx_state.cfg.v_dpi == 144) ? 16 : 8;
 
-    uint8_t *row_data = malloc(8 * width);
+    uint8_t *row_data = malloc(rows_per_line * width);
     if(row_data == NULL) {
         free(bmp);
         return -1;
     }
 
-    for(unsigned i = 0; i < height; i += 8) {
-        unsigned rows = 8;
+    for(unsigned i = 0; i < height; i += rows_per_line) {
+        unsigned rows = rows_per_line;
         if((height - i) < rows) {
             rows = height - i;
         }
 
+        /* Copy and convert pixel data */
         unsigned idx = 0;
         for(unsigned y = i; y < i + rows; y++) {
             for(unsigned x = 0; x < width; x++) {
@@ -264,7 +330,11 @@ int iwii_gfx_print_bmp(int fd, int bmp_fd) {
             }
         }
 
-        iwii_gfx_print_line_color(fd, row_data, width, rows);
+        if(_gfx_state.cfg.v_dpi == 144) {
+            iwii_gfx_print_line_color_144dpi(fd, row_data, width, rows);
+        } else {
+            iwii_gfx_print_line_color(fd, row_data, width, rows);
+        }
         write(fd, "\r\n", 2);
     }
 

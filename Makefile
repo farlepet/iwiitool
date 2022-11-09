@@ -7,7 +7,7 @@ OBJ		= $(patsubst %.c,%.o,$(CSRC))
 DEPS    = $(patsubst %.c,%.d,$(CSRC))
 EXEC	= iwiitool
 
-CFLAGS	    = -I$(INC) -Wall -Wextra -Werror -O2 -g
+CFLAGS	    = -I$(INC) -Wall -Wextra -Werror -O2 -ggdb2
 LDFLAGS		=
 
 ifeq ($(CC), "clang")
