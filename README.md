@@ -1,54 +1,36 @@
-ansi2iwii
+iwiitool
 =========
 
-Tool to convert ANSI escape sequences to those compatible with the Apple
-ImageWriter II.
+Set of tools for interactiong with Apple ImageWriter II dot-matrix printers:
+ - `ansi2iwii`: Tool to convert ANSI escape sequences to those compatible with
+   the ImageWriter II.
+ - `iwiigfx`: Tool to print B&W and color pictures using an ImageWriter II
 
 Example
 -------
 
-Example of a printout generated using `test.sh` and a color ribbon:
-![Test print from test.sh](images/test_print.jpg)
+![Test print from test.sh](images/test_print_2.jpg)
 
-Supported ANSI Escape Codes
----------------------------
+The image was printed using `iwiigfx` on `images/test.bmp`:
+```
+./iwiigfx -o /dev/ttyUSB0 -i images/test.bmp -H 72 -V 72 -S -R
+```
 
-Currently only a subset of SGR (Screen Graphic Rendition) ANSI escape sequences
-(following the form of `ESC[<num>[...]m`) are supported:
+`images/test.bmp` was generated using ImageMagick's `convert` utility, along with
+the palette file provided in `images/palette.bmp`:
+```
+convert test.tiff -resize 128x128 -dither FloydSteinberg -map palette.bmp -colors 8 test.bmp
+```
 
-| SGR   | Description               | IWII        | Notes                                                 |
-|-------|---------------------------|-------------|-------------------------------------------------------|
-| 0     | Reset                     | (multiple)  |                                                       |
-| 1     | Bold                      | `ESC !`     |                                                       |
-| 3     | Italic                    | `ESC w`     | Approximating using half height text on the IWII side |
-| 4     | Underline                 | `ESC X`     |                                                       |
-| 8     | Conceal                   | N/A         | Prints spaces while enabled                           |
-| 9     | Strikethrough             | `\b-`       | Prints - over each character (slow)                   |
-| 10    | Primary Font              | (multiple)  | Set via `--font`, defaults to Elite                   |
-| 11-19 | Set Font                  | (multiple)  | See `--help` for details                              |
-| 22    | Normal Intensity/Bold Off | `ESC "`     |                                                       |
-| 23    | Italic Off                | `ESC W`     | See note on 3                                         |
-| 24    | Underline Off             | `ESC Y`     |                                                       |
-| 26    | Proportional Spacing      | (multiple)  | Sets font to pica/elite proportional                  |
-| 28    | Conceal Off               | N/A         |                                                       |
-| 29    | Strikethrough Off         | N/A         |                                                       |
-| 30-37 | Set Foreground Color      | (multiple)  | Cyan (6) represented by orange                        |
-| 50    | Proportional Spacing Off  | (multiple)  |                                                       |
-| 73    | Superscript               | `ESC x`     |                                                       |
-| 74    | Subscript                 | `ESC y`     |                                                       |
-| 75    | Superscript/Subscript Off | `ESC z`     |                                                       |
-
-Additional ImageWriter II escape codes are supported through command-line options.
+The text to the right of the image was printed by pipeing `test.sh` through `ansi2iwii` with a margin of 24
+characters. The close line spacing is left-over from the settings for the image print, but can be changed
+through `ansi2iwii` and the -l or -L flag.
+```
+./test.sh | ./ansi2iwii -o /dev/ttyUSB0 -c -U -q 2 -M 24
+```
 
 Usage
 -----
-
-The main intended use of `ansi2iwii` is to be used as an intermediate program
-between a program generating text, and the printer's serial port. e.g.:
-
-```
-... | ansi2iwii -o /dev/ttyUSB0
-```
 
 ```
 $ ./ansi2iwii --help
@@ -112,4 +94,64 @@ Miscellaneous:
   -v, --verbose[=LEVEL]     Increase verbosity, can be supplied multiple times, or desired
                             verbosity can be directly supplied
 ```
+
+```
+$ ./iwiigfx --help
+iwiigfx: Print B&W and color images using an ImageWriter II
+
+Basic Options:
+  -i, --image=FILE          Read image from FILE, use `-` for stdin (default)
+                            Image must be in BMP format, with no more than 8 used colors,
+                            which must match those in the provided palette.bmp.
+  -o, --output=FILE         Write output to FILE, use `-` for stdout (default)
+  -b, --baud=RATE           Set baud rate to use when output is set to the printer's serial
+                            port. Values 300, 1200, 2400, and 9600 (default) are accepted
+  -F, --flow=MODE           Set flow control mode when using serial as output
+                              0: None
+                              1: XON/XOFF (default)
+                              2: RTS/CTS
+
+Graphics Options:
+  -H, --hdpi=DPI            Horizontal DPI, values of 72 (default), 80, 96, 107, 120,
+                            136, 144, and 160 are supported
+  -V, --vdpi=DPI            Vertical DPI, values of 72 (default), and 144 are supported.
+  -O, --hoff=OFFSET         Set horizontal offset in dots
+  -R, --return-to-top       Return to top of image after completion
+  -s, --sequential-color    Print image one color at a time. This can potentially reduce
+                            color bleed or ribbon staining when printing at 144 dpi vertical
+                            resulution.
+
+Miscellaneous:
+  -h, --help                Display this help message
+```
+
+Supported ANSI Escape Codes
+---------------------------
+
+Currently only a subset of SGR (Screen Graphic Rendition) ANSI escape sequences
+(following the form of `ESC[<num>[...]m`) are supported:
+
+| SGR   | Description               | IWII        | Notes                                                 |
+|-------|---------------------------|-------------|-------------------------------------------------------|
+| 0     | Reset                     | (multiple)  |                                                       |
+| 1     | Bold                      | `ESC !`     |                                                       |
+| 3     | Italic                    | `ESC w`     | Approximating using half height text on the IWII side |
+| 4     | Underline                 | `ESC X`     |                                                       |
+| 8     | Conceal                   | N/A         | Prints spaces while enabled                           |
+| 9     | Strikethrough             | `\b-`       | Prints - over each character (slow)                   |
+| 10    | Primary Font              | (multiple)  | Set via `--font`, defaults to Elite                   |
+| 11-19 | Set Font                  | (multiple)  | See `--help` for details                              |
+| 22    | Normal Intensity/Bold Off | `ESC "`     |                                                       |
+| 23    | Italic Off                | `ESC W`     | See note on 3                                         |
+| 24    | Underline Off             | `ESC Y`     |                                                       |
+| 26    | Proportional Spacing      | (multiple)  | Sets font to pica/elite proportional                  |
+| 28    | Conceal Off               | N/A         |                                                       |
+| 29    | Strikethrough Off         | N/A         |                                                       |
+| 30-37 | Set Foreground Color      | (multiple)  | Cyan (6) represented by orange                        |
+| 50    | Proportional Spacing Off  | (multiple)  |                                                       |
+| 73    | Superscript               | `ESC x`     |                                                       |
+| 74    | Subscript                 | `ESC y`     |                                                       |
+| 75    | Superscript/Subscript Off | `ESC z`     |                                                       |
+
+Additional ImageWriter II escape codes are supported through command-line options.
 
