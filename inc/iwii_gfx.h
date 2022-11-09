@@ -8,6 +8,7 @@
  */
 typedef struct {
 #define IWII_GFX_FLAG_RETURNTOTOP (1UL << 0) /**< Return to top of image after printing */
+#define IWII_GFX_FLAG_SEQCOLORS   (1UL << 1) /**< Print entire image one color at a time */
     uint16_t flags; /**< Flags */
     uint8_t  h_dpi; /**< Horizontal dots per inch */
     uint8_t  v_dpi; /**< Vertical dots per inch */

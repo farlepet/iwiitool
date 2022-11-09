@@ -94,9 +94,12 @@ static void _help(void) {
          "Graphics Options:\n"
          "  -H, --hdpi=DPI            Horizontal DPI, values of 72 (default), 80, 96, 107, 120,\n"
          "                            136, 144, and 160 are supported\n"
-         "  -V, --vdpi=DPI            Vertical DPI, values of 72 (default), and 144 (todo) are supported.\n"
+         "  -V, --vdpi=DPI            Vertical DPI, values of 72 (default), and 144 are supported.\n"
          "  -O, --hoff=OFFSET         Set horizontal offset in dots\n"
          "  -R, --return-to-top       Return to top of image after completion\n"
+         "  -s, --sequential-color    Print image one color at a time. This can potentially reduce\n"
+         "                            color bleed or ribbon staining when printing at 144 dpi vertical\n"
+         "                            resulution.\n"
          "\n"
          "Miscellaneous:\n"
          "  -h, --help                Display this help message\n"
@@ -116,6 +119,7 @@ static const struct option prog_options[] = {
     { "vdpi",             required_argument, NULL, 'V' },
     { "hoff",             required_argument, NULL, 'O' },
     { "return-to-top",    no_argument,       NULL, 'R' },
+    { "sequential-color", no_argument,       NULL, 'S' },
     /* Miscellaneous */
     { "help",             no_argument,       NULL, 'h' },
     { NULL, 0, NULL, 0 }
@@ -163,7 +167,7 @@ static int __get_number(const char *arg, unsigned min, unsigned max, const char 
 static int _handle_args(int argc, char **const argv) {
     int c;
     while ((c = getopt_long(argc, argv, "i:o:b:F:"
-                                        "H:V:O:R"
+                                        "H:V:O:RS"
                                         "h", prog_options, NULL)) >= 0) {
         switch(c) {
             case 'i':
@@ -253,6 +257,9 @@ static int _handle_args(int argc, char **const argv) {
                 break;
             case 'R':
                 opts.gfx_cfg.flags |= IWII_GFX_FLAG_RETURNTOTOP;
+                break;
+            case 'S':
+                opts.gfx_cfg.flags |= IWII_GFX_FLAG_SEQCOLORS;
                 break;
 
             case 'h':
