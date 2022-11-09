@@ -9,20 +9,18 @@
 #include "iwii_gfx.h"
 
 typedef struct {
-    uint8_t h_dpi; /**< Horizontal dots per inch */
-    uint8_t v_dpi; /**< Vertical dots per inch */
+    iwii_gfx_params_t cfg; /**< Configuration parameters */
 } iwii_gfx_state_t;
 
 static iwii_gfx_state_t _gfx_state;
 
-int iwii_gfx_init(int fd, unsigned h_dpi, unsigned v_dpi) {
+int iwii_gfx_init(int fd, const iwii_gfx_params_t *params) {
     memset(&_gfx_state, 0, sizeof(_gfx_state));
-
-
+    memcpy(&_gfx_state.cfg, params, sizeof(iwii_gfx_state_t));
     
     /* Horizontal DPI is determined by the currently selected font */
     iwii_font_e font;
-    switch(h_dpi) {
+    switch(_gfx_state.cfg.h_dpi) {
         case 72:
             font = IWII_FONT_EXTENDED;
             break;
@@ -53,7 +51,7 @@ int iwii_gfx_init(int fd, unsigned h_dpi, unsigned v_dpi) {
 
     /* Dots are spaced 1/72 inches apart, 144dpi is acheived be doing stepping
      * done 144th of an inch. */
-    if((v_dpi != 72) && (v_dpi != 144)) {
+    if((_gfx_state.cfg.v_dpi != 72) && (_gfx_state.cfg.v_dpi != 144)) {
         return -1;
     }
 
@@ -61,9 +59,6 @@ int iwii_gfx_init(int fd, unsigned h_dpi, unsigned v_dpi) {
        iwii_set_line_spacing(fd, 16)) {
         return -1;
     }
-
-    _gfx_state.h_dpi = h_dpi;
-    _gfx_state.v_dpi = v_dpi;
 
     return 0;
 }
@@ -89,7 +84,7 @@ static int iwii_gfx_print_line(int fd, const uint8_t *data, unsigned len) {
 }
 
 /**
- * @brief Tests if the given color required using the current ribbon
+ * @brief Tests if the given color requires using the current ribbon
  * 
  * @param ribbon Current ribbon
  * @param color  Color to test
@@ -138,7 +133,8 @@ static int iwii_gfx_print_line_color(int fd, const uint8_t *data, unsigned width
          * 1: Red
          * 2: Blue 
          * 3: Black*/
-        int wr = 0;
+        int start = -1;
+        int end   =  0;
 
         for(unsigned j = 0; j < width; j++) {
             uint8_t col = 0;
@@ -146,22 +142,25 @@ static int iwii_gfx_print_line_color(int fd, const uint8_t *data, unsigned width
                 col = (col << 1) | (_test_color(i, data[(k * width) + j]) ? 1 : 0);
             }
             if(col) {
-                wr = 1;
+                if(start < 0) {
+                    start = j;
+                }
+                end = j;
             }
             line[j] = col;
         }
 
         /* Only write if color is used in line */
-        if(wr) {
+        if(start >= 0) {
             iwii_set_color(fd, (i == 0) ? IWII_COLOR_YELLOW :
                                (i == 1) ? IWII_COLOR_RED    :
                                (i == 2) ? IWII_COLOR_BLUE   : IWII_COLOR_BLACK);
 
             /* Start carriage to 0
              * @todo Allow image to be positioned anywhere */
-            dprintf(fd, "\r\033F0000");
+            dprintf(fd, "\r\033F%04d", _gfx_state.cfg.h_pos + start);
             
-            iwii_gfx_print_line(fd, line, width);
+            iwii_gfx_print_line(fd, &line[start], (end + 1) - start);
         }
     }
 
@@ -171,38 +170,6 @@ static int iwii_gfx_print_line_color(int fd, const uint8_t *data, unsigned width
 
 
 int iwii_gfx_print_image(int fd, const uint8_t *data, unsigned width, unsigned height) {
-#if 0
-    /* Test conversion when using some GIMP-generated C arrays. */
-    for(unsigned i = 0; i < (width * height); i++) {
-        switch(data[i]) {
-            case 0:
-                data[i] = IWII_COLOR_MAX;
-                break;
-            case 1:
-                data[i] = IWII_COLOR_BLACK;
-                break;
-            case 2:
-                data[i] = IWII_COLOR_BLUE;
-                break;
-            case 3:
-                data[i] = IWII_COLOR_PURPLE;
-                break;
-            case 4:
-                data[i] = IWII_COLOR_GREEN;
-                break;
-            case 5:
-                data[i] = IWII_COLOR_RED;
-                break;
-            case 6:
-                data[i] = IWII_COLOR_YELLOW;
-                break;
-            case 7:
-                data[i] = IWII_COLOR_ORANGE;
-                break;
-        }
-    }
-#endif
-
     for(unsigned i = 0; i < height; i += 8) {
         unsigned rows = 8;
         if((height - i) < rows) {
@@ -236,7 +203,7 @@ int iwii_gfx_print_bmp(int fd, int bmp_fd) {
         free(bmp);
         return -1;
     }
-    /* @note Even if the file is only using 6 colors, it may say it is using 16, or it
+    /* @note Even if the file is only using 8 colors, it may say it is using 16, or it
      * relies upon the bits-per-pixel value instead. ImageMagick for instance does this,
      * while GIMP does not. So we allow up to 16, and only fail if any of them are
      * unexpected colors. */
@@ -284,7 +251,6 @@ int iwii_gfx_print_bmp(int fd, int bmp_fd) {
         unsigned idx = 0;
         for(unsigned y = i; y < i + rows; y++) {
             for(unsigned x = 0; x < width; x++) {
-                /* Assuming success */
                 int col = bmp_get_pixel(bmp, x, y);
                 if(col < 0 || col > 7) {
                     fprintf(stderr, "GFX: Bad pixel: (%u, %u) -> %d\n", x, y, col);
@@ -302,6 +268,16 @@ int iwii_gfx_print_bmp(int fd, int bmp_fd) {
         write(fd, "\r\n", 2);
     }
 
+    if(_gfx_state.cfg.flags & IWII_GFX_FLAG_RETURNTOTOP) {
+        unsigned lines;
+        if(_gfx_state.cfg.v_dpi == 144) {
+            lines = (height + 15) / 16;
+        } else {
+            lines = (height + 7) / 8;
+        }
+        iwii_move_up_lines(fd, lines);
+    }
+
     free(row_data);
     bmp_destroy(bmp);
     free(bmp);
@@ -310,7 +286,14 @@ int iwii_gfx_print_bmp(int fd, int bmp_fd) {
 }
 
 int iwii_gfx_test(int fd) {
-    if(iwii_gfx_init(fd, 72, 72)) {
+    iwii_gfx_params_t params = {
+        .flags     = 0,
+        .h_dpi     = 72,
+        .v_dpi     = 72,
+        .h_pos     = 0
+    };
+
+    if(iwii_gfx_init(fd, &params)) {
         return -1;
     }
 

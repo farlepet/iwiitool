@@ -21,9 +21,7 @@ typedef struct opts_struct {
     unsigned baud;      /**< Baud rate to use */
     uint8_t  flow;      /**< Flow control method to use */
 
-/* GFX Config */
-    uint8_t h_dpi;      /**< Horizontal dots-per-inch */
-    uint8_t v_dpi;      /**< Vertical dots-per-inch */
+    iwii_gfx_params_t gfx_cfg; /**< iwii_gfx configuration */
 } opts_t;
 
 static opts_t opts = {
@@ -34,8 +32,12 @@ static opts_t opts = {
     .baud      = 9600,
 
 /* GFX config */
-    .h_dpi     = 72,
-    .v_dpi     = 72
+    .gfx_cfg = {
+        .flags     = 0,
+        .h_dpi     = 72,
+        .v_dpi     = 72,
+        .h_pos     = 0
+    }
 };
 
 static int _handle_args(int argc, char **const argv);
@@ -53,7 +55,7 @@ int iwiigfx(int argc, char **argv) {
         return -1;
     }
 
-    if(iwii_gfx_init(opts.fd_out, opts.h_dpi, opts.v_dpi)) {
+    if(iwii_gfx_init(opts.fd_out, &opts.gfx_cfg)) {
         goto main_fail;
     }
     
@@ -90,7 +92,11 @@ static void _help(void) {
          "                              2: RTS/CTS\n"
          "\n"
          "Graphics Options:\n"
-         "  <TODO>\n"
+         "  -H, --hdpi=DPI            Horizontal DPI, values of 72 (default), 80, 96, 107, 120,\n"
+         "                            136, 144, and 160 are supported\n"
+         "  -V, --vdpi=DPI            Vertical DPI, values of 72 (default), and 144 (todo) are supported.\n"
+         "  -O, --hoff=OFFSET         Set horizontal offset in dots\n"
+         "  -R, --return-to-top       Return to top of image after completion\n"
          "\n"
          "Miscellaneous:\n"
          "  -h, --help                Display this help message\n"
@@ -106,6 +112,10 @@ static const struct option prog_options[] = {
     { "baud",             required_argument, NULL, 'b' },
     { "flow",             required_argument, NULL, 'F' },
     /* Graphics Options */
+    { "hdpi",             required_argument, NULL, 'H' },
+    { "vdpi",             required_argument, NULL, 'V' },
+    { "hoff",             required_argument, NULL, 'O' },
+    { "return-to-top",    no_argument,       NULL, 'R' },
     /* Miscellaneous */
     { "help",             no_argument,       NULL, 'h' },
     { NULL, 0, NULL, 0 }
@@ -153,6 +163,7 @@ static int __get_number(const char *arg, unsigned min, unsigned max, const char 
 static int _handle_args(int argc, char **const argv) {
     int c;
     while ((c = getopt_long(argc, argv, "i:o:b:F:"
+                                        "H:V:O:R"
                                         "h", prog_options, NULL)) >= 0) {
         switch(c) {
             case 'i':
@@ -197,6 +208,51 @@ static int _handle_args(int argc, char **const argv) {
             } break;
             case 'F':
                 _get_number(0, 2, "Flow control selection", opts.flow);
+                break;
+            
+            case 'H': {
+                if(!isdigit(optarg[0])) {
+                    fprintf(stderr, "Horizontal DPI selection must 72, 80, 96, 107, 120, 136, 144, or 160!\n");
+                    return -1;
+                }
+                unsigned dpi = strtoul(optarg, NULL, 10);
+                switch(dpi) {
+                    case 72:
+                    case 80:
+                    case 96:
+                    case 107:
+                    case 120:
+                    case 136:
+                    case 144:
+                    case 160:
+                        opts.gfx_cfg.h_dpi = dpi;
+                        break;
+                    default:
+                        fprintf(stderr, "Horizontal DPI selection must 72, 80, 96, 107, 120, 136, 144, or 160!\n");
+                        return -1;
+                }
+            } break;
+            case 'V': {
+                if(!isdigit(optarg[0])) {
+                    fprintf(stderr, "Vertical DPI selection must 72 or 144!\n");
+                    return -1;
+                }
+                unsigned dpi = strtoul(optarg, NULL, 10);
+                switch(dpi) {
+                    case 72:
+                    case 144:
+                        opts.gfx_cfg.v_dpi = dpi;
+                        break;
+                    default:
+                        fprintf(stderr, "Vertical DPI selection must 72 or 144!\n");
+                        return -1;
+                }
+            } break;
+            case 'O':
+                _get_number(0, 9999, "Horizontal offset", opts.gfx_cfg.h_pos);
+                break;
+            case 'R':
+                opts.gfx_cfg.flags |= IWII_GFX_FLAG_RETURNTOTOP;
                 break;
 
             case 'h':

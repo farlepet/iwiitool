@@ -232,3 +232,15 @@ int iwii_set_prop_spacing(int fd, unsigned prop_spacing) {
     return 0;
 }
 
+int iwii_move_up_lines(int fd, unsigned lines) {
+    /* Reverse line feed */
+    write(fd, "\er", 2);
+    while(lines--) {
+        write(fd, "\n", 1);
+    }
+    /* Forward line feed */
+    write(fd, "\ef", 2);
+
+    return 0;
+}
+

@@ -68,5 +68,7 @@ int iwii_set_pagelen(int fd, unsigned pagelen);
 
 int iwii_set_prop_spacing(int fd, unsigned prop_spacing);
 
+int iwii_move_up_lines(int fd, unsigned lines);
+
 #endif
 
