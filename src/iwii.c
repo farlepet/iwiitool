@@ -8,7 +8,7 @@
 #include "ansi_escape.h"
 #include "iwii.h"
 
-int iwii_serial_init(int fd, unsigned flow, unsigned baud) {
+int iwii_serial_init(int fd, iwii_flow_e flow, unsigned baud) {
     speed_t speed;
     if(baud == 300) {
         speed = B300;
