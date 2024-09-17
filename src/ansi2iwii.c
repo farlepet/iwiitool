@@ -274,9 +274,80 @@ static const char _ansi_iwii_codes[] = {
     [ANSI_SGR_NO_ITALIC]                = 'W',
 };
 
+/* Handle a single SGR code */
+static int _handle_sgr(unsigned sgr) {
+    if((sgr < sizeof(_ansi_iwii_codes)) &&
+       (_ansi_iwii_codes[sgr] != 0)) {
+        dprintf(opts.fd_out, "\033%c", _ansi_iwii_codes[sgr]);
+    } else {
+        if((sgr >= ANSI_SGR_FONT_START) &&
+           (sgr < (ANSI_SGR_FONT_START + IWII_FONT_MAX))) {
+            opts.font_curr = sgr - ANSI_SGR_FONT_START;
+            iwii_set_font(opts.fd_out, opts.font_curr);
+        } else if((sgr >= ANSI_SGR_FOREGROUND_START) &&
+                  (sgr <= ANSI_SGR_FOREGROUND_END)) {
+            if(opts.flags & OPT_FLAG_ENABLECOLOR) {
+                iwii_set_ansicolor(opts.fd_out, sgr - ANSI_SGR_FOREGROUND_START);
+            }
+        } else {
+            switch(sgr) {
+                case ANSI_SGR_RESET:
+                    _ansi_reset();
+                    break;
+                case ANSI_SGR_STRIKETHROUGH:
+                    opts.flags |= OPT_FLAG_STRIKETHROUGH;
+                    break;
+                case ANSI_SGR_NO_STRIKETHROUGH:
+                    opts.flags &= ~OPT_FLAG_STRIKETHROUGH;
+                    break;
+                case ANSI_SGR_CONCEAL:
+                    opts.flags |= OPT_FLAG_CONCEAL;
+                    break;
+                case ANSI_SGR_NO_CONCEAL:
+                    opts.flags &= ~OPT_FLAG_CONCEAL;
+                    break;
+                case ANSI_SGR_FONT_PRIMARY:
+                    opts.font_curr = opts.font;
+                    iwii_set_font(opts.fd_out, opts.font_curr);
+                    break;
+                case ANSI_SGR_PROPORTIONAL_SPACING:
+                    if((opts.font_curr == IWII_FONT_PROPORTIONAL_PICA) ||
+                       (opts.font_curr == IWII_FONT_PROPORTIONAL_ELITE)) {
+                        /* Already proportional */
+                        break;
+                    }
+                    opts.font_save = opts.font_curr;
+                    opts.font_curr = (opts.font_save >= IWII_FONT_ELITE) ? IWII_FONT_PROPORTIONAL_ELITE :
+                                                                           IWII_FONT_PROPORTIONAL_PICA;
+                    iwii_set_font(opts.fd_out, opts.font_curr);
+                    break;
+                case ANSI_SGR_NO_PROPORTIONAL_SPACING:
+                    if((opts.font_curr != IWII_FONT_PROPORTIONAL_PICA) &&
+                       (opts.font_curr != IWII_FONT_PROPORTIONAL_ELITE)) {
+                        /* Already fixed-width (assuming custom font is fixed) */
+                        break;
+                    }
+                    if(opts.font_save != 0xff) {
+                        opts.font_curr = opts.font_save;
+                    } else {
+                        opts.font_curr = (opts.font_curr == IWII_FONT_PROPORTIONAL_ELITE) ? IWII_FONT_ELITE :
+                                                                                            IWII_FONT_PICA;
+                    }
+                    iwii_set_font(opts.fd_out, opts.font_curr);
+                    break;
+                default:
+                    /* Unsupported SGR */
+                    return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 static int _handle_char(char c) {
     /* @todo It would be more efficient to buffer up writes and send them in chunks. */
-#define ANSIBUFF_SZ 8
+#define ANSIBUFF_SZ 32
     static char     ansi_buf[ANSIBUFF_SZ];
     static unsigned ansi_pos = 0;
 
@@ -295,70 +366,21 @@ static int _handle_char(char c) {
                 /* Only SGR escape sequences are presently supported */
                 goto ansi_error;
             }
-            unsigned sgr = strtoul(&ansi_buf[2], NULL, 10);
-            if((sgr < sizeof(_ansi_iwii_codes)) &&
-               (_ansi_iwii_codes[sgr] != 0)) {
-                dprintf(opts.fd_out, "\033%c", _ansi_iwii_codes[sgr]);
-            } else {
-                if((sgr >= ANSI_SGR_FONT_START) &&
-                   (sgr < (ANSI_SGR_FONT_START + IWII_FONT_MAX))) {
-                    opts.font_curr = sgr - ANSI_SGR_FONT_START;
-                    iwii_set_font(opts.fd_out, opts.font_curr);
-                } else if((sgr >= ANSI_SGR_FOREGROUND_START) &&
-                          (sgr <= ANSI_SGR_FOREGROUND_END)) {
-                    if(opts.flags & OPT_FLAG_ENABLECOLOR) {
-                        iwii_set_ansicolor(opts.fd_out, sgr - ANSI_SGR_FOREGROUND_START);
-                    }
-                } else {
-                    switch(sgr) {
-                        case ANSI_SGR_RESET:
-                            _ansi_reset();
-                            break;
-                        case ANSI_SGR_STRIKETHROUGH:
-                            opts.flags |= OPT_FLAG_STRIKETHROUGH;
-                            break;
-                        case ANSI_SGR_NO_STRIKETHROUGH:
-                            opts.flags &= ~OPT_FLAG_STRIKETHROUGH;
-                            break;
-                        case ANSI_SGR_CONCEAL:
-                            opts.flags |= OPT_FLAG_CONCEAL;
-                            break;
-                        case ANSI_SGR_NO_CONCEAL:
-                            opts.flags &= ~OPT_FLAG_CONCEAL;
-                            break;
-                        case ANSI_SGR_FONT_PRIMARY:
-                            opts.font_curr = opts.font;
-                            iwii_set_font(opts.fd_out, opts.font_curr);
-                            break;
-                        case ANSI_SGR_PROPORTIONAL_SPACING:
-                            if((opts.font_curr == IWII_FONT_PROPORTIONAL_PICA) ||
-                               (opts.font_curr == IWII_FONT_PROPORTIONAL_ELITE)) {
-                                /* Already proportional */
-                                break;
-                            }
-                            opts.font_save = opts.font_curr;
-                            opts.font_curr = (opts.font_save >= IWII_FONT_ELITE) ? IWII_FONT_PROPORTIONAL_ELITE :
-                                                                                   IWII_FONT_PROPORTIONAL_PICA;
-                            iwii_set_font(opts.fd_out, opts.font_curr);
-                            break;
-                        case ANSI_SGR_NO_PROPORTIONAL_SPACING:
-                            if((opts.font_curr != IWII_FONT_PROPORTIONAL_PICA) &&
-                               (opts.font_curr != IWII_FONT_PROPORTIONAL_ELITE)) {
-                                /* Already fixed-width (assuming custom font is fixed) */
-                                break;
-                            }
-                            if(opts.font_save != 0xff) {
-                                opts.font_curr = opts.font_save;
-                            } else {
-                                opts.font_curr = (opts.font_curr == IWII_FONT_PROPORTIONAL_ELITE) ? IWII_FONT_ELITE :
-                                                                                                    IWII_FONT_PICA;
-                            }
-                            iwii_set_font(opts.fd_out, opts.font_curr);
-                            break;
-                        default:
-                            /* Unsupported SGR */
-                            goto ansi_error;
-                    }
+
+            char *next = &ansi_buf[2];
+            while(next && *next != 'm') {
+                if(!isdigit(*next)) {
+                    /* Shouldn't happen, but if it does we'd get into an
+                     * infinite loop */
+                    goto ansi_error;
+                }
+                unsigned sgr = strtoul(next, &next, 10);
+                if(_handle_sgr(sgr)) {
+                    goto ansi_error;
+                }
+                if(next && *next == ';') {
+                    /* Multiple SGRs in a single sequence, move on to the next one */
+                    next++;
                 }
             }
             ansi_pos = 0;

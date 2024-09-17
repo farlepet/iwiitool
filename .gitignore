@@ -3,4 +3,6 @@
 iwiitool
 ansi2iwii
 iwiigfx
+compile_commands.json
+.cache
 
