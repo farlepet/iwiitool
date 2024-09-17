@@ -23,10 +23,10 @@ $(EXEC): $(OBJ)
 	@$(CC) $(OBJ) $(LDFLAGS) -o $(EXEC)
 
 ansi2iwii: $(EXEC)
-	@ln -s $< $@
+	@ln -sf $< $@
 
 iwiigfx: $(EXEC)
-	@ln -s $< $@
+	@ln -sf $< $@
 
 clean:
 	@echo -e "\033[33m  \033[1mCleaning $(EXEC)\033[0m"
